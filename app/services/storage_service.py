@@ -39,3 +39,21 @@ class MinioStorageService:
             content_type=content_type
         )
         return filename
+
+    def list_files(self):
+        return list(self.client.list_objects(self.bucket_name))
+
+    def get_file_stat(self, filename: str):
+        try:
+            return self.client.stat_object(self.bucket_name, filename)
+        except S3Error:
+            return None
+
+    def delete_file(self, filename: str) -> bool:
+        try:
+            self.client.remove_object(self.bucket_name, filename)
+            return True
+        except S3Error as e:
+            print(f"Error removing object {filename} from MinIO: {e}")
+            return False
+

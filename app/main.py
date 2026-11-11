@@ -7,6 +7,7 @@ from pathlib import Path
 
 from fastapi import FastAPI
 from llama_index.embeddings.ollama import OllamaEmbedding
+#from llama_index.embeddings.gemini import GeminiEmbedding
 from llama_index.llms.ollama import Ollama
 from starlette.middleware.cors import CORSMiddleware
 
@@ -14,8 +15,9 @@ from app.services.storage_service import MinioStorageService
 
 sys.path.append(str(Path(__file__).resolve().parent))
 
-from app.dependencies import DatabasePool, OllamaLLMClient
-from app.routers import query, upload
+from app.dependencies import DatabasePool
+from app.routers import query, upload, documents
+
 
 logging.basicConfig(
     level=logging.INFO,
@@ -68,6 +70,8 @@ app.add_middleware(
 
 app.include_router(query.router)
 app.include_router(upload.router)
+app.include_router(documents.router)
+
 
 @app.get("/health", tags=["System"])
 def health_check():
