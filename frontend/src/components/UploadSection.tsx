@@ -116,7 +116,7 @@ export const UploadSection: React.FC = () => {
           <p className="upload-subtitle">
             {isUploading
               ? 'Файлът се съхранява в MinIO и векторизира с bge-m3 в pgvector...'
-              : 'Плъзнете файл тук или кликнете за избор от компютъра'}
+              : 'Плъзнете файл или кликнете за избор от компютъра'}
           </p>
         </div>
 

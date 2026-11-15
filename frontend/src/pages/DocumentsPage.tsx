@@ -54,7 +54,6 @@ export const DocumentsPage: React.FC = () => {
         <div className="card-head">
           <div>
             <h2 className="card-title">Качване на документ</h2>
-            <p className="card-desc">PDF или DOCX — файлът се съхранява в MinIO и се индексира в pgvector.</p>
           </div>
         </div>
         <UploadSection />

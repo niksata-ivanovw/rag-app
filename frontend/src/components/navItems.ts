@@ -8,7 +8,7 @@ export interface NavItem {
 }
 
 export const NAV_ITEMS: NavItem[] = [
-  { to: '/chat', label: 'AI Чат помощник', title: 'AI Чат помощник', icon: MessageSquareText },
+  { to: '/chat', label: 'AI Чат асистент', title: 'AI Чат асистент', icon: MessageSquareText },
   { to: '/documents', label: 'Документи', title: 'Документи', icon: FileText },
   { to: '/statistics', label: 'Статистика', title: 'Статистика', icon: BarChart3 },
   { to: '/history', label: 'История', title: 'История на чатовете', icon: History },

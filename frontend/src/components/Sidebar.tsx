@@ -21,9 +21,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ open, onClose }) => {
           </span>
           <span className="brand-name">RAG Assistant</span>
         </Link>
-        <button type="button" className="icon-btn sidebar-close" onClick={onClose} aria-label="Затвори менюто">
-          <X size={18} />
-        </button>
       </div>
 
       <nav className="sidebar-nav">

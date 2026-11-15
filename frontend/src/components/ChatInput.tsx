@@ -41,7 +41,7 @@ export const ChatInput: React.FC = () => {
         placeholder={
           selectedDocument
             ? `Задайте въпрос относно „${selectedDocument.filename}“…`
-            : 'Задайте въпрос към вашите документи…'
+            : 'Задайте въпрос относно вашите документи…'
         }
         rows={1}
         disabled={isQuerying}

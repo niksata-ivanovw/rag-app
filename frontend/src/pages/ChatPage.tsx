@@ -41,8 +41,7 @@ export const ChatPage: React.FC = () => {
             </div>
             <h2 className="welcome-title">Как мога да помогна днес?</h2>
             <p className="welcome-desc">
-              Задайте въпрос и асистентът ще намери най-релевантните откъси от вашите документи и ще
-              отговори с цитирани източници.
+              Задайте въпрос и асистентът ще намери най-релевантният отговор от вашите документи.
             </p>
             <div className="prompt-grid">
               {SAMPLE_PROMPTS.map((prompt) => (

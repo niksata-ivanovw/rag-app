@@ -59,7 +59,6 @@ export const ScopeSelector: React.FC = () => {
           >
             <span className="scope-item-text">
               <span className="scope-item-title">Всички документи</span>
-              <span className="scope-item-meta">Целият pgvector индекс</span>
             </span>
             {!selectedDocument && <Check size={15} />}
           </button>

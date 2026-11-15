@@ -16,9 +16,6 @@ export const Topbar: React.FC<TopbarProps> = ({ onMenuClick }) => {
   return (
     <header className="topbar">
       <div className="topbar-left">
-        <button type="button" className="icon-btn menu-btn" onClick={onMenuClick} aria-label="Отвори менюто">
-          <Menu size={20} />
-        </button>
         <h1 className="topbar-title">{current?.title ?? 'RAG Assistant'}</h1>
       </div>
 
@@ -30,9 +27,10 @@ export const Topbar: React.FC<TopbarProps> = ({ onMenuClick }) => {
           <span className="status-pill-dot" />
           {backendOnline ? 'Онлайн' : 'Офлайн'}
         </span>
-        <span className="user-avatar" aria-hidden="true">
+        <button type="button" className="user-avatar" aria-hidden="true">
           <User size={18} />
-        </span>
+        </button>
+        {/* make the button get darker on hover */}
       </div>
     </header>
   );

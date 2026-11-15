@@ -87,7 +87,6 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
               'Сигурни ли сте, че искате да изтриете този документ? Файлът ще бъде премахнат напълно от MinIO storage и всички съответни векторни ембединги ще бъдат изтрити от pgvector.'}
           </p>
           <div className="modal-callout">
-            <span className="callout-bullet">⚠️</span>
             <span>
               След изтриването, чат асистентът вече няма да има достъп до съдържанието на този документ.
             </span>
