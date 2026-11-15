@@ -13,6 +13,7 @@ class ChunkSource(BaseModel):
 class QueryRequest(BaseModel):
     question: str = Field(..., min_length=2, example="Колко точки получава човекът на позиция 4?")
     top_k: int = Field(default=3, ge=1, le=10, description="Брой Резултати от търсенето")
+    file_name: Optional[str] = Field(default=None, description="Опционален филтър по име на документ")
 
 class QueryResponse(BaseModel):
     question: str

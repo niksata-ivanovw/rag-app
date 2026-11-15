@@ -19,7 +19,11 @@ def handle_query(
         retriever = VectorRetrieverService(db_pool, embed_model)
         rag_service = RAGService(retriever, llm_client)
 
-        answer, sources = rag_service.answer(request.question, top_k=request.top_k)
+        answer, sources = rag_service.answer(
+            request.question,
+            top_k=request.top_k,
+            file_name=request.file_name
+        )
         return QueryResponse(question=request.question, answer=answer, sources=sources)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error while processing the question: {str(e)}")

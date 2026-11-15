@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Optional
 
 from llama_index.embeddings.ollama import OllamaEmbedding
 from pgvector.psycopg2 import register_vector
@@ -12,7 +12,7 @@ class VectorRetrieverService:
         self.db_pool = db_pool
         self.embed_model = embed_model
 
-    def search(self, query_text: str, top_k: int = 3) -> List[ChunkSource]:
+    def search(self, query_text: str, top_k: int = 3, file_name: Optional[str] = None) -> List[ChunkSource]:
         # generate vector using bge-m3
         query_vector = self.embed_model.get_text_embedding(query_text)
 
@@ -20,13 +20,23 @@ class VectorRetrieverService:
         try:
             register_vector(conn)
             with conn.cursor() as cur:
-                search_query = """
-                    SELECT content, 1 - (embedding <=> %s::vector) AS similarity_score, metadata
-                    FROM document_chunks
-                    ORDER BY embedding <=> %s::vector
-                    LIMIT %s;
-                """
-                cur.execute(search_query, (query_vector, query_vector, top_k))
+                if file_name and file_name.strip():
+                    search_query = """
+                        SELECT content, 1 - (embedding <=> %s::vector) AS similarity_score, metadata
+                        FROM document_chunks
+                        WHERE metadata->>'file_name' = %s
+                        ORDER BY embedding <=> %s::vector
+                        LIMIT %s;
+                    """
+                    cur.execute(search_query, (query_vector, file_name.strip(), query_vector, top_k))
+                else:
+                    search_query = """
+                        SELECT content, 1 - (embedding <=> %s::vector) AS similarity_score, metadata
+                        FROM document_chunks
+                        ORDER BY embedding <=> %s::vector
+                        LIMIT %s;
+                    """
+                    cur.execute(search_query, (query_vector, query_vector, top_k))
                 rows = cur.fetchall()
 
                 sources = []

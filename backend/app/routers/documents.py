@@ -1,10 +1,28 @@
 import urllib.parse
-from fastapi import APIRouter, Depends, HTTPException, status
-from app.dependencies import get_db_pool, get_storage_service, DatabasePool
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
+from llama_index.embeddings.ollama import OllamaEmbedding
+from app.dependencies import get_db_pool, get_storage_service, get_embed_model, DatabasePool
 from app.services.storage_service import MinioStorageService
 from app.schemas.documents import DocumentItem, DocumentListResponse, DocumentDeleteResponse
+from app.schemas.upload import UploadResponse
+from app.routers.upload import handle_upload
 
 router = APIRouter(prefix="/documents", tags=["Documents"])
+
+
+@router.post("", response_model=UploadResponse, summary="Upload new document")
+async def upload_document(
+    file: UploadFile = File(...),
+    db_pool: DatabasePool = Depends(get_db_pool),
+    embed_model: OllamaEmbedding = Depends(get_embed_model),
+    storage_service: MinioStorageService = Depends(get_storage_service),
+):
+    return await handle_upload(
+        file=file,
+        db_pool=db_pool,
+        embed_model=embed_model,
+        storage_service=storage_service
+    )
 
 
 @router.get("", response_model=DocumentListResponse)

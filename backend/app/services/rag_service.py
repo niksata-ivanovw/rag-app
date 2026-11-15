@@ -1,4 +1,4 @@
-from typing import List, Tuple
+from typing import List, Tuple, Optional
 
 from llama_index.llms.ollama import Ollama
 from app.schemas.query import ChunkSource
@@ -10,9 +10,9 @@ class RAGService:
         self.retriever = retriever
         self.llm_client = llm_client
 
-    def answer(self, question: str, top_k: int = 3) -> Tuple[str, List[ChunkSource]]:
+    def answer(self, question: str, top_k: int = 3, file_name: Optional[str] = None) -> Tuple[str, List[ChunkSource]]:
         # find most relevant chunks
-        sources = self.retriever.search(question, top_k=top_k)
+        sources = self.retriever.search(question, top_k=top_k, file_name=file_name)
 
         if not sources:
             return "Didn't find any relevant documents in the database.", []
