@@ -5,11 +5,12 @@
 
 :root {
   /* Surfaces */
-  --bg: #f3f4f8;
+  --bg: #EEF2F6;
   --surface: #ffffff;
   --surface-2: #f7f7fb;
   --surface-3: #efeff6;
   --border: #e9e9f1;
+  --border-strong: #16161d;
 
   /* Text */
   --text: #16161d;
@@ -171,10 +172,6 @@ p {
   letter-spacing: -0.01em;
 }
 
-.sidebar-close {
-  display: none;
-}
-
 .sidebar-nav {
   display: flex;
   flex-direction: column;
@@ -232,10 +229,6 @@ p {
   color: var(--bad);
 }
 
-.sidebar-scrim {
-  display: none;
-}
-
 /* ---------- Topbar ---------- */
 
 .topbar {
@@ -261,10 +254,6 @@ p {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-
-.menu-btn {
-  display: none;
 }
 
 .status-pill {
@@ -341,7 +330,7 @@ p {
 .btn-outline,
 .btn-secondary {
   background: var(--surface);
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-strong);
 }
 
 .btn-outline:hover:not(:disabled),
@@ -513,7 +502,7 @@ p {
   padding: 16px;
   border-radius: var(--radius);
   background: var(--surface-2);
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-strong);
   font-size: 14px;
   font-weight: 500;
   transition: border-color 0.15s, background 0.15s;
@@ -634,7 +623,7 @@ p {
 
 .msg-ai .msg-bubble {
   background: var(--surface-2);
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-strong);
   border-top-left-radius: 6px;
 }
 
@@ -692,7 +681,7 @@ p {
   padding: 8px 8px 8px 20px;
   border-radius: 18px;
   background: var(--surface-2);
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-strong);
   transition: border-color 0.15s, box-shadow 0.15s;
 }
 
@@ -757,14 +746,14 @@ p {
   padding: 8px 12px;
   border-radius: 10px;
   background: var(--surface-2);
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-strong);
   font-size: 13px;
   font-weight: 600;
 }
 
 .scope-btn.active {
   background: var(--accent-soft);
-  border-color: transparent;
+  border-color: var(--accent);
   color: var(--accent);
 }
 
@@ -786,7 +775,7 @@ p {
   padding: 8px;
   border-radius: var(--radius);
   background: var(--surface);
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-strong);
   box-shadow: var(--shadow-pop);
 }
 
@@ -852,7 +841,7 @@ p {
 /* Sources (SourceCollapsible) */
 
 .source-collapsible {
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-strong);
   border-radius: var(--radius-sm);
   overflow: hidden;
 }
@@ -1060,7 +1049,7 @@ p {
   min-width: 240px;
   border-radius: var(--radius-sm);
   background: var(--surface-2);
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-strong);
   color: var(--text-3);
 }
 
@@ -1090,12 +1079,12 @@ p {
   padding: 18px;
   border-radius: var(--radius);
   background: var(--surface-2);
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-strong);
   transition: border-color 0.15s, box-shadow 0.15s;
 }
 
 .doc-card:hover {
-  border-color: #d9d6ee;
+  border-color: var(--accent);
 }
 
 .doc-card.selected {
@@ -1201,7 +1190,7 @@ p {
   border-radius: 99px;
   font-size: 12px;
   font-weight: 600;
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-strong);
   background: var(--surface);
   color: var(--text-2);
 }
@@ -1227,7 +1216,7 @@ p {
   gap: 12px;
   padding: 32px 20px;
   border-radius: var(--radius);
-  border: 2px dashed #d9d6ee;
+  border: 2px dashed var(--border-strong);
   background: var(--surface-2);
   cursor: pointer;
   transition: border-color 0.15s, background 0.15s;
@@ -1509,31 +1498,26 @@ p {
     --gap: 16px;
   }
 
+  /* Collapse the sidebar into an icon rail */
   .sidebar {
-    position: fixed;
-    inset: 0 auto 0 0;
-    z-index: 50;
-    border-radius: 0 var(--radius-lg) var(--radius-lg) 0;
-    transform: translateX(-100%);
-    transition: transform 0.2s ease;
+    width: auto;
+    padding: 16px 10px;
   }
 
-  .sidebar.open {
-    transform: none;
-    box-shadow: var(--shadow-pop);
+  .sidebar-head {
+    justify-content: center;
+    padding: 0 0 20px;
   }
 
-  .sidebar-close,
-  .menu-btn {
-    display: inline-grid;
+  .brand-name,
+  .nav-label,
+  .nav-count {
+    display: none;
   }
 
-  .sidebar-scrim {
-    display: block;
-    position: fixed;
-    inset: 0;
-    z-index: 40;
-    background: rgba(22, 22, 29, 0.35);
+  .nav-item {
+    justify-content: center;
+    padding: 12px;
   }
 
   .topbar-title {

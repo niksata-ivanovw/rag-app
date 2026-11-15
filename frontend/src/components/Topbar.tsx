@@ -1,14 +1,10 @@
 import React from 'react';
 import { useLocation } from 'react-router-dom';
-import { Menu, User } from 'lucide-react';
+import { User } from 'lucide-react';
 import { useRag } from '../context/useRag';
 import { NAV_ITEMS } from './navItems';
 
-interface TopbarProps {
-  onMenuClick: () => void;
-}
-
-export const Topbar: React.FC<TopbarProps> = ({ onMenuClick }) => {
+export const Topbar: React.FC = () => {
   const { backendOnline } = useRag();
   const { pathname } = useLocation();
   const current = NAV_ITEMS.find((item) => pathname.startsWith(item.to));

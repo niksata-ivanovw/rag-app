@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { RagProvider } from './context/RagContext';
 import { Sidebar } from './components/Sidebar';
@@ -10,17 +10,13 @@ import { HistoryPage } from './pages/HistoryPage';
 import { SettingsPage } from './pages/SettingsPage';
 
 export const App: React.FC = () => {
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-
   return (
     <RagProvider>
       <BrowserRouter>
         <div className="app-shell">
-          <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
-          {sidebarOpen && <div className="sidebar-scrim" onClick={() => setSidebarOpen(false)} />}
-
+          <Sidebar />
           <div className="app-main">
-            <Topbar onMenuClick={() => setSidebarOpen(true)} />
+            <Topbar />
             <main className="page-area">
               <Routes>
                 <Route path="/chat" element={<ChatPage />} />

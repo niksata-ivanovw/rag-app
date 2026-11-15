@@ -1,21 +1,16 @@
 import React from 'react';
 import { NavLink, Link } from 'react-router-dom';
-import { LogOut, Sparkles, X } from 'lucide-react';
+import { LogOut, Sparkles } from 'lucide-react';
 import { useRag } from '../context/useRag';
 import { NAV_ITEMS } from './navItems';
 
-interface SidebarProps {
-  open: boolean;
-  onClose: () => void;
-}
-
-export const Sidebar: React.FC<SidebarProps> = ({ open, onClose }) => {
+export const Sidebar: React.FC = () => {
   const { documents } = useRag();
 
   return (
-    <aside className={`sidebar ${open ? 'open' : ''}`}>
+    <aside className="sidebar">
       <div className="sidebar-head">
-        <Link to="/chat" className="brand" onClick={onClose}>
+        <Link to="/chat" className="brand">
           <span className="brand-mark">
             <Sparkles size={18} />
           </span>
@@ -28,11 +23,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ open, onClose }) => {
           <NavLink
             key={to}
             to={to}
-            onClick={onClose}
             className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
           >
             <Icon size={19} />
-            <span>{label}</span>
+            <span className="nav-label">{label}</span>
             {to === '/documents' && documents.length > 0 && (
               <span className="nav-count">{documents.length}</span>
             )}
@@ -44,7 +38,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ open, onClose }) => {
         {/* Log out: intentionally no functionality yet */}
         <button type="button" className="nav-item logout-btn">
           <LogOut size={19} />
-          <span>Изход</span>
+          <span className="nav-label">Изход</span>
         </button>
       </div>
     </aside>
