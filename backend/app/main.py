@@ -11,6 +11,7 @@ from llama_index.embeddings.ollama import OllamaEmbedding
 from llama_index.llms.ollama import Ollama
 from starlette.middleware.cors import CORSMiddleware
 
+from app.services.chat_service import ChatSessionStore
 from app.services.storage_service import MinioStorageService
 
 sys.path.append(str(Path(__file__).resolve().parent))
@@ -32,7 +33,10 @@ async def lifespan(app: FastAPI):
     app.state.db_pool = DatabasePool()
     app.state.storage_service = MinioStorageService()
     app.state.embed_model = OllamaEmbedding(model_name="bge-m3", base_url="http://localhost:11434")
-    app.state.llm_client = Ollama(model="qwen3.5:9b", base_url="http://localhost:11434", request_timeout=120.0)
+    app.state.llm_client = Ollama(model="qwen3.5:9b", base_url="http://localhost:11434", request_timeout=120.0, thinking=False)
+    # Same model without "thinking": used only to rewrite follow-up questions, which is fast this way
+    app.state.condense_llm = Ollama(model="qwen3.5:9b", base_url="http://localhost:11434", request_timeout=120.0, thinking=False)
+    app.state.chat_sessions = ChatSessionStore()
 
     logger.info("warming up embedding model 'bge-m3' in Ollama memory...")
     start_time = time.perf_counter()

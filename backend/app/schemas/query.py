@@ -14,6 +14,7 @@ class QueryRequest(BaseModel):
     question: str = Field(..., min_length=2, example="Колко точки получава човекът на позиция 4?")
     top_k: int = Field(default=3, ge=1, le=10, description="Брой Резултати от търсенето")
     file_name: Optional[str] = Field(default=None, description="Опционален филтър по име на документ")
+    session_id: str = Field(default="default", min_length=1, max_length=128, description="ID на чат сесията; историята на разговора се пази по него")
 
 class QueryResponse(BaseModel):
     question: str

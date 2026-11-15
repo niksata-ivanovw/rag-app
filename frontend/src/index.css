@@ -639,6 +639,22 @@ p {
   padding: 16px 18px;
 }
 
+.stream-caret {
+  display: inline-block;
+  width: 2px;
+  height: 1.1em;
+  margin-left: 2px;
+  vertical-align: text-bottom;
+  background: currentColor;
+  animation: caret-blink 1s steps(1) infinite;
+}
+
+@keyframes caret-blink {
+  50% {
+    opacity: 0;
+  }
+}
+
 .typing-dot {
   width: 7px;
   height: 7px;

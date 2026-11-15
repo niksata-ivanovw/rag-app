@@ -1,7 +1,24 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import type { DocumentItem, ChatMessage, ChunkSource } from '../types';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import type { DocumentItem, ChatMessage } from '../types';
 import { api } from '../api/client';
 import { RagContext } from './ragContextInstance';
+
+const SESSION_KEY = 'rag_session_id';
+
+const newSessionId = (): string =>
+  typeof crypto !== 'undefined' && 'randomUUID' in crypto
+    ? crypto.randomUUID()
+    : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
+const loadSessionId = (): string => {
+  const saved = localStorage.getItem(SESSION_KEY);
+  if (saved) return saved;
+  const id = newSessionId();
+  localStorage.setItem(SESSION_KEY, id);
+  return id;
+};
+
+const nowTime = () => new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
 export const RagProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
@@ -13,8 +30,14 @@ export const RagProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const [messages, setMessages] = useState<ChatMessage[]>(() => {
     const saved = localStorage.getItem('rag_chat_messages');
-    return saved ? JSON.parse(saved) : [];
+    const parsed: ChatMessage[] = saved ? JSON.parse(saved) : [];
+    // A reload mid-answer leaves a half-streamed message behind; mark it finished.
+    return parsed.map((m) => (m.streaming ? { ...m, streaming: false } : m));
   });
+
+  // Server-side conversation memory is keyed by this id
+  const sessionIdRef = useRef<string>(loadSessionId());
+  const abortRef = useRef<AbortController | null>(null);
 
   const [isQuerying, setIsQuerying] = useState<boolean>(false);
   const [backendOnline, setBackendOnline] = useState<boolean>(true);
@@ -143,61 +166,87 @@ export const RagProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const sendMessage = async (question: string) => {
     if (!question.trim() || isQuerying) return;
 
-    const userMsgId = `user-${Date.now()}`;
+    const targetFile = selectedDocument ? selectedDocument.filename : null;
+    const assistantId = `assistant-${Date.now()}`;
+
     const userMessage: ChatMessage = {
-      id: userMsgId,
+      id: `user-${Date.now()}`,
       role: 'user',
       content: question.trim(),
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      targetFile: selectedDocument ? selectedDocument.filename : null,
+      timestamp: nowTime(),
+      targetFile,
+    };
+    // Empty placeholder that fills up token by token
+    const assistantMessage: ChatMessage = {
+      id: assistantId,
+      role: 'assistant',
+      content: '',
+      timestamp: nowTime(),
+      targetFile,
+      streaming: true,
     };
 
-    setMessages((prev) => [...prev, userMessage]);
+    const updateAssistant = (update: (m: ChatMessage) => ChatMessage) =>
+      setMessages((prev) => prev.map((m) => (m.id === assistantId ? update(m) : m)));
+
+    setMessages((prev) => [...prev, userMessage, assistantMessage]);
     setIsQuerying(true);
 
+    const controller = new AbortController();
+    abortRef.current = controller;
+
     try {
-      const response = await api.query({
-        question: question.trim(),
-        top_k: 3,
-        file_name: selectedDocument ? selectedDocument.filename : undefined,
-      });
-
-      const assistantMessage: ChatMessage = {
-        id: `assistant-${Date.now()}`,
-        role: 'assistant',
-        content: response.answer,
-        sources: response.sources as ChunkSource[],
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        targetFile: selectedDocument ? selectedDocument.filename : null,
-      };
-
-      setMessages((prev) => [...prev, assistantMessage]);
+      await api.queryStream(
+        {
+          question: question.trim(),
+          top_k: 3,
+          file_name: targetFile ?? undefined,
+          session_id: sessionIdRef.current,
+        },
+        (event) => {
+          switch (event.type) {
+            case 'sources':
+              updateAssistant((m) => ({ ...m, sources: event.sources }));
+              break;
+            case 'token':
+              updateAssistant((m) => ({ ...m, content: m.content + event.content }));
+              break;
+            case 'error':
+              throw new Error(event.detail);
+          }
+        },
+        controller.signal
+      );
+      updateAssistant((m) => ({ ...m, streaming: false }));
     } catch (err: unknown) {
+      if (controller.signal.aborted) return; // chat was cleared mid-answer
       console.error('Query error:', err);
-      let errorMsg = 'Възникна грешка при обработката на въпроса.';
-      if (err && typeof err === 'object' && 'response' in err) {
-        const axErr = err as { response?: { data?: { detail?: string } } };
-        errorMsg = axErr.response?.data?.detail || errorMsg;
-      }
+      const errorMsg = err instanceof Error && err.message ? err.message : 'Възникна грешка при обработката на въпроса.';
+      updateAssistant((m) => ({
+        ...m,
+        // keep whatever was already streamed, then show the error
+        content: m.content ? `${m.content}
 
-      const errorMessage: ChatMessage = {
-        id: `assistant-${Date.now()}`,
-        role: 'assistant',
-        content: `⚠️ ${errorMsg}`,
+⚠️ ${errorMsg}` : `⚠️ ${errorMsg}`,
         error: true,
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        targetFile: selectedDocument ? selectedDocument.filename : null,
-      };
-
-      setMessages((prev) => [...prev, errorMessage]);
+        streaming: false,
+      }));
     } finally {
+      if (abortRef.current === controller) abortRef.current = null;
       setIsQuerying(false);
     }
   };
 
   const clearMessages = () => {
+    abortRef.current?.abort();
     setMessages([]);
     localStorage.removeItem('rag_chat_messages');
+
+    // Drop the server-side history and start a fresh conversation
+    const oldSession = sessionIdRef.current;
+    sessionIdRef.current = newSessionId();
+    localStorage.setItem(SESSION_KEY, sessionIdRef.current);
+    api.resetSession(oldSession).catch((err) => console.warn('Failed to reset chat session:', err));
   };
 
   return (

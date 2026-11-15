@@ -42,7 +42,15 @@ export interface QueryRequest {
   question: string;
   top_k?: number;
   file_name?: string | null;
+  session_id?: string;
 }
+
+/** One NDJSON line from POST /query/stream */
+export type QueryStreamEvent =
+  | { type: 'sources'; sources: ChunkSource[] }
+  | { type: 'token'; content: string }
+  | { type: 'done' }
+  | { type: 'error'; detail: string };
 
 export interface QueryResponse {
   question: string;
@@ -58,4 +66,6 @@ export interface ChatMessage {
   timestamp: string;
   targetFile?: string | null;
   error?: boolean;
+  /** True while tokens are still arriving */
+  streaming?: boolean;
 }

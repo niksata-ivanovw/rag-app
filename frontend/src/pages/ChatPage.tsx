@@ -16,7 +16,7 @@ export const ChatPage: React.FC = () => {
   const endRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: 'smooth' });
+    endRef.current?.scrollIntoView({ behavior: isQuerying ? 'auto' : 'smooth', block: 'end' });
   }, [messages, isQuerying]);
 
   const lastIsAssistant = messages.length > 0 && messages[messages.length - 1].role === 'assistant';
@@ -57,25 +57,6 @@ export const ChatPage: React.FC = () => {
             {messages.map((message) => (
               <ChatMessageItem key={message.id} message={message} />
             ))}
-
-            {isQuerying && (
-              <div className="msg msg-ai">
-                <div className="msg-avatar avatar-ai pulse">
-                  <Sparkles size={17} />
-                </div>
-                <div className="msg-body">
-                  <div className="msg-meta">
-                    <span className="msg-author">RAG Асистент</span>
-                    <span className="msg-time">Мисли…</span>
-                  </div>
-                  <div className="msg-bubble typing">
-                    <span className="typing-dot" />
-                    <span className="typing-dot" />
-                    <span className="typing-dot" />
-                  </div>
-                </div>
-              </div>
-            )}
             <div ref={endRef} />
           </div>
         )}
