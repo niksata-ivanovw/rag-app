@@ -1356,6 +1356,11 @@ p {
   color: #b42318;
 }
 
+.upload-status-banner.warning {
+  background: var(--warn-soft);
+  color: #b54708;
+}
+
 .status-icon {
   flex-shrink: 0;
 }

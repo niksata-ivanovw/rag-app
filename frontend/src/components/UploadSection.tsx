@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { Upload, FileUp, CheckCircle2, AlertCircle, X, Loader2 } from 'lucide-react';
+import { Upload, FileUp, CheckCircle2, AlertCircle, AlertTriangle, X, Loader2 } from 'lucide-react';
 import { useRag } from '../context/useRag';
 
 export const UploadSection: React.FC = () => {
@@ -7,7 +7,9 @@ export const UploadSection: React.FC = () => {
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [statusMessage, setStatusMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [statusMessage, setStatusMessage] = useState<{ type: 'success' | 'error' | 'warning'; text: string } | null>(
+    null
+  );
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -48,20 +50,15 @@ export const UploadSection: React.FC = () => {
     setIsUploading(false);
     setSelectedFile(null);
 
-    if (result.success) {
-      setStatusMessage({
-        type: 'success',
-        text: result.message,
-      });
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-      }
-    } else {
-      setStatusMessage({
-        type: 'error',
-        text: result.message,
-      });
+    // Reset the input so picking the same file again still fires onChange
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
     }
+
+    setStatusMessage({
+      type: result.success ? 'success' : result.duplicate ? 'warning' : 'error',
+      text: result.message,
+    });
   };
 
   const handleDrop = async (e: React.DragEvent) => {
@@ -136,10 +133,15 @@ export const UploadSection: React.FC = () => {
 
       {/* Notification banner */}
       {statusMessage && (
-        <div className={`upload-status-banner ${statusMessage.type}`}>
+        <div
+          className={`upload-status-banner ${statusMessage.type}`}
+          role={statusMessage.type === 'success' ? 'status' : 'alert'}
+        >
           <div className="status-content">
             {statusMessage.type === 'success' ? (
               <CheckCircle2 size={18} className="status-icon" />
+            ) : statusMessage.type === 'warning' ? (
+              <AlertTriangle size={18} className="status-icon" />
             ) : (
               <AlertCircle size={18} className="status-icon" />
             )}

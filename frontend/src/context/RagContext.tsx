@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import type { DocumentItem, ChatMessage } from '../types';
 import { api } from '../api/client';
-import { RagContext } from './ragContextInstance';
+import { RagContext, type UploadResult } from './ragContextInstance';
 
 const SESSION_KEY = 'rag_session_id';
 const SELECTED_IDS_KEY = 'rag_selected_doc_ids';
@@ -145,7 +145,7 @@ export const RagProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const clearDocumentSelection = () => setSelectedDocumentIds([]);
 
-  const uploadDocument = async (file: File): Promise<{ success: boolean; message: string }> => {
+  const uploadDocument = async (file: File): Promise<UploadResult> => {
     try {
       const result = await api.uploadDocument(file);
       await fetchDocuments();
@@ -154,12 +154,19 @@ export const RagProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         message: result.message || `Файлът "${file.name}" беше качен и индексиран успешно (${result.chunks_indexed} чънка).`,
       };
     } catch (err: unknown) {
-      console.error('Upload error:', err);
       let errorMsg = 'Грешка при качване на файла.';
       if (err && typeof err === 'object' && 'response' in err) {
-        const axErr = err as { response?: { data?: { detail?: string } } };
+        const axErr = err as { response?: { status?: number; data?: { detail?: string } } };
+        if (axErr.response?.status === 409) {
+          return {
+            success: false,
+            duplicate: true,
+            message: `Документ с име „${file.name}“ вече съществува. Изтрийте стария или преименувайте файла и опитайте отново.`,
+          };
+        }
         errorMsg = axErr.response?.data?.detail || errorMsg;
       }
+      console.error('Upload error:', err);
       return { success: false, message: errorMsg };
     }
   };

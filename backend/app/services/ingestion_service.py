@@ -15,6 +15,16 @@ class IngestionService:
         self.db_pool = db_pool
         self.embed_model = embed_model
 
+    def is_indexed(self, filename: str) -> bool:
+        """True if pgvector already holds chunks for this file name."""
+        conn = self.db_pool.get_connection()
+        try:
+            with conn.cursor() as cur:
+                cur.execute("SELECT 1 FROM document_chunks WHERE metadata->>'file_name' = %s LIMIT 1", (filename,))
+                return cur.fetchone() is not None
+        finally:
+            self.db_pool.release_connection(conn)
+
     def ingest_bytes(self, filename: str, file_bytes: bytes) -> int:
         suffix = os.path.splitext(filename)[1].lower()
         with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
