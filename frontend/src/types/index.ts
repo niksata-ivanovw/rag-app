@@ -81,4 +81,6 @@ export interface ChatMessage {
   error?: boolean;
   /** True while tokens are still arriving */
   streaming?: boolean;
+  /** The user stopped the generation; content is whatever had arrived by then */
+  stopped?: boolean;
 }

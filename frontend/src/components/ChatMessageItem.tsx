@@ -1,5 +1,5 @@
 import React from 'react';
-import { User, Sparkles, AlertTriangle, FileText } from 'lucide-react';
+import { User, Sparkles, AlertTriangle, FileText, CircleStop } from 'lucide-react';
 import type { ChatMessage } from '../types';
 import { SourceCollapsible } from './SourceCollapsible';
 import ReactMarkDown from 'react-markdown';
@@ -30,6 +30,12 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({ message }) => 
               {scope.length === 1 ? scope[0] : `${scope.length} документа`}
             </span>
           )}
+          {message.stopped && (
+            <span className="msg-stopped" title="Генерирането беше спряно от вас">
+              <CircleStop size={11} />
+              Спряно
+            </span>
+          )}
         </div>
 
         {waitingForFirstToken ? (
@@ -40,7 +46,11 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({ message }) => 
           </div>
         ) : (
           <div className="msg-bubble markdown">
-            <ReactMarkDown remarkPlugins={[remarkGfm]}>{message.content}</ReactMarkDown>
+            {message.stopped && !message.content ? (
+              <p className="msg-stopped-empty">Генерирането беше спряно преди да започне отговорът.</p>
+            ) : (
+              <ReactMarkDown remarkPlugins={[remarkGfm]}>{message.content}</ReactMarkDown>
+            )}
             {message.streaming && <span className="stream-caret" aria-hidden="true" />}
           </div>
         )}

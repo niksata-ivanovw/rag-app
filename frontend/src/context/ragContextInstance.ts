@@ -26,6 +26,8 @@ export interface RagContextType {
   /** The last question in the chat (null if none); what "Генерирай отново" re-asks */
   lastQuestion: string | null;
   regenerateLastAnswer: () => Promise<void>;
+  /** Stops the answer that is being streamed (keeps the text received so far) */
+  stopGeneration: () => void;
   clearMessages: () => void;
   backendOnline: boolean;
 }

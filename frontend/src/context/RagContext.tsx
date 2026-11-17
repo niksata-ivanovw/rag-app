@@ -4,6 +4,8 @@ import { api } from '../api/client';
 import { RagContext, type UploadResult } from './ragContextInstance';
 
 const SESSION_KEY = 'rag_session_id';
+/** abort() reason that means "the user pressed Stop" (clearing the chat aborts without it) */
+const STOP_REASON = 'user-stopped';
 const SELECTED_IDS_KEY = 'rag_selected_doc_ids';
 const LEGACY_SELECTED_KEY = 'rag_selected_doc';
 
@@ -274,7 +276,13 @@ export const RagProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       );
       updateAssistant((m) => ({ ...m, streaming: false }));
     } catch (err: unknown) {
-      if (controller.signal.aborted) return; // chat was cleared mid-answer
+      if (controller.signal.aborted) {
+        // Stop: keep the partial answer. Clear chat: the message is gone anyway.
+        if (controller.signal.reason === STOP_REASON) {
+          updateAssistant((m) => ({ ...m, streaming: false, stopped: true }));
+        }
+        return;
+      }
       console.error('Query error:', err);
       const errorMsg = err instanceof Error && err.message ? err.message : 'Възникна грешка при обработката на въпроса.';
       updateAssistant((m) => ({
@@ -337,6 +345,9 @@ export const RagProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     await streamAnswer(lastQuestion, assistantMessage.id, documentIds, true);
   };
 
+  // Aborting the fetch closes the connection; the backend notices and stops the LLM too
+  const stopGeneration = () => abortRef.current?.abort(STOP_REASON);
+
   const clearMessages = () => {
     abortRef.current?.abort();
     setMessages([]);
@@ -366,6 +377,7 @@ export const RagProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         sendMessage,
         lastQuestion,
         regenerateLastAnswer,
+        stopGeneration,
         clearMessages,
         backendOnline,
       }}

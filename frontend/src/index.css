@@ -594,6 +594,23 @@ p {
   font-size: 13px;
 }
 
+.msg-stopped {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 8px;
+  border-radius: 99px;
+  background: var(--surface-2);
+  border: 1px solid var(--border-strong);
+  color: var(--text-3);
+}
+
+.msg-stopped-empty {
+  margin: 0;
+  font-style: italic;
+  color: var(--text-3);
+}
+
 .msg-scope {
   display: inline-flex;
   align-items: center;
@@ -749,6 +766,15 @@ p {
 
 .composer-send:disabled {
   opacity: 0.4;
+}
+
+.composer-stop {
+  background: var(--text);
+  color: var(--surface);
+}
+
+.composer-stop:hover:not(:disabled) {
+  background: var(--text-2);
 }
 
 /* Scope selector */

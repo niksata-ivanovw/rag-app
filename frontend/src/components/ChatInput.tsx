@@ -1,9 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { SendHorizontal, Loader2 } from 'lucide-react';
+import { SendHorizontal, Square } from 'lucide-react';
 import { useRag } from '../context/useRag';
 
 export const ChatInput: React.FC = () => {
-  const { sendMessage, isQuerying, selectedDocuments } = useRag();
+  const { sendMessage, isQuerying, selectedDocuments, stopGeneration } = useRag();
   const [input, setInput] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -49,15 +49,27 @@ export const ChatInput: React.FC = () => {
         disabled={isQuerying}
         className="composer-input"
       />
-      <button
-        type="submit"
-        disabled={!input.trim() || isQuerying}
-        className="composer-send"
-        title="Изпрати (Enter)"
-        aria-label="Изпрати"
-      >
-        {isQuerying ? <Loader2 size={18} className="spin" /> : <SendHorizontal size={18} />}
-      </button>
+      {isQuerying ? (
+        <button
+          type="button"
+          onClick={stopGeneration}
+          className="composer-send composer-stop"
+          title="Спри генерирането"
+          aria-label="Спри генерирането"
+        >
+          <Square size={15} fill="currentColor" />
+        </button>
+      ) : (
+        <button
+          type="submit"
+          disabled={!input.trim()}
+          className="composer-send"
+          title="Изпрати (Enter)"
+          aria-label="Изпрати"
+        >
+          <SendHorizontal size={18} />
+        </button>
+      )}
     </form>
   );
 };

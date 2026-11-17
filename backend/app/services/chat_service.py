@@ -1,8 +1,9 @@
 import threading
 from collections import OrderedDict
-from typing import Any, List, Optional, Sequence
+from typing import Any, Generator, List, Optional, Sequence
 
 from llama_index.core.base.base_retriever import BaseRetriever
+from llama_index.core.base.response.schema import StreamingResponse
 from llama_index.core.chat_engine import CondensePlusContextChatEngine
 from llama_index.core.chat_engine.condense_plus_context import DEFAULT_CONDENSE_PROMPT_TEMPLATE
 from llama_index.core.base.llms.generic_utils import messages_to_history_str
@@ -168,6 +169,20 @@ class ChatSessionStore:
             return drop
 
 
+def cancellable(tokens: Generator[str, None, None], cancel: threading.Event) -> Generator[str, None, None]:
+    """
+    Stops pulling tokens from the LLM once `cancel` is set, and closes the LLM stream,
+    which closes the HTTP connection to Ollama so it stops generating.
+    """
+    try:
+        for token in tokens:
+            if cancel.is_set():
+                break
+            yield token
+    finally:
+        tokens.close()
+
+
 class RAGChatEngine(CondensePlusContextChatEngine):
     """
     CondensePlusContextChatEngine that can rewrite follow-up questions with a separate LLM.
@@ -178,6 +193,8 @@ class RAGChatEngine(CondensePlusContextChatEngine):
 
     condense_llm: Optional[LLM] = None
     scope: Optional[List[str]] = None
+    # Set it to stop a running stream_chat (e.g. the client disconnected)
+    cancel_event: Optional[threading.Event] = None
 
     def _condense_question(self, chat_history: List[ChatMessage], latest_message: str) -> str:
         if self.condense_llm is None or self._skip_condense or not chat_history:
@@ -191,7 +208,21 @@ class RAGChatEngine(CondensePlusContextChatEngine):
     def _get_response_synthesizer(self, chat_history: List[ChatMessage], streaming: bool = False):
         # The full history is still used above to rewrite follow-ups into standalone questions;
         # only the answer step is restricted to turns from the current scope.
-        return super()._get_response_synthesizer(filter_history_by_scope(chat_history, self.scope), streaming)
+        synthesizer = super()._get_response_synthesizer(filter_history_by_scope(chat_history, self.scope), streaming)
+        if streaming and self.cancel_event is not None:
+            # LlamaIndex consumes the LLM stream in its own thread, to the very end, even if nobody reads it.
+            # Wrapping the token generator here lets cancel_event stop that thread and the Ollama request.
+            cancel = self.cancel_event
+            synthesize = synthesizer.synthesize
+
+            def synthesize_cancellable(*args, **kwargs):
+                response = synthesize(*args, **kwargs)
+                if isinstance(response, StreamingResponse) and response.response_gen is not None:
+                    response.response_gen = cancellable(response.response_gen, cancel)
+                return response
+
+            synthesizer.synthesize = synthesize_cancellable
+        return synthesizer
 
 
 def build_chat_engine(
@@ -211,4 +242,5 @@ def build_chat_engine(
     )
     engine.condense_llm = condense_llm
     engine.scope = scope
+    engine.cancel_event = threading.Event()
     return engine

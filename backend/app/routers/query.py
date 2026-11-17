@@ -1,9 +1,10 @@
 import json
 import logging
-from typing import Iterator
+from typing import AsyncIterator
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
+from starlette.concurrency import run_in_threadpool
 from llama_index.core.chat_engine.types import StreamingAgentChatResponse
 from llama_index.embeddings.ollama import OllamaEmbedding
 from llama_index.llms.ollama import Ollama
@@ -74,6 +75,7 @@ def handle_query(
 @router.post("/stream")
 def handle_query_stream(
         request: QueryRequest,
+        http_request: Request,
         db_pool: DatabasePool = Depends(get_db_pool),
         embed_model: OllamaEmbedding = Depends(get_embed_model),
         llm: Ollama = Depends(get_llm_client),
@@ -86,6 +88,9 @@ def handle_query_stream(
       {"type": "token", "content": "..."}      for each generated token
       {"type": "done"}                         at the end
       {"type": "error", "detail": "..."}       if generation fails mid-stream
+
+    If the client disconnects (e.g. the user pressed "Stop"), generation is cancelled: the Ollama
+    request is closed and only the part generated so far is kept in the session history.
     """
     # Retrieval and prompt setup run here, so failures still return a proper HTTP error.
     try:
@@ -94,17 +99,28 @@ def handle_query_stream(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error while processing the question: {str(e)}")
 
-    def event_stream() -> Iterator[str]:
-        sources = [node_to_source(n).model_dump() for n in response.source_nodes]
-        yield _ndjson({"type": "sources", "sources": sources})
+    async def event_stream() -> AsyncIterator[str]:
+        tokens = response.response_gen  # blocking generator, so each next() runs in the threadpool
         try:
-            for token in response.response_gen:
+            sources = [node_to_source(n).model_dump() for n in response.source_nodes]
+            yield _ndjson({"type": "sources", "sources": sources})
+            while True:
+                # Starlette only notices a disconnect when a write fails; check explicitly instead
+                if await http_request.is_disconnected():
+                    logger.info("Client disconnected, stopping generation (session %s)", request.session_id)
+                    return
+                token = await run_in_threadpool(next, tokens, None)
+                if token is None:
+                    break
                 if token:
                     yield _ndjson({"type": "token", "content": token})
             yield _ndjson({"type": "done"})
         except Exception as e:
             logger.exception("Streaming generation failed")
             yield _ndjson({"type": "error", "detail": f"Error while generating the answer: {str(e)}"})
+        finally:
+            # Runs on normal end, on disconnect and on cancellation: stops the Ollama stream if still running
+            engine.cancel_event.set()
 
     return StreamingResponse(
         event_stream(),
