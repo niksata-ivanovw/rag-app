@@ -35,9 +35,15 @@ def _make_engine(request: QueryRequest, db_pool, embed_model, llm, condense_llm,
     retriever = PgVectorRetriever(
         VectorRetrieverService(db_pool, embed_model),
         top_k=request.top_k,
-        file_name=request.file_name,
+        document_ids=request.document_ids,
     )
-    return build_chat_engine(retriever, llm, sessions.get(request.session_id), condense_llm=condense_llm)
+    return build_chat_engine(
+        retriever,
+        llm,
+        sessions.get(request.session_id),
+        condense_llm=condense_llm,
+        document_ids=request.document_ids,
+    )
 
 
 def _ndjson(event: dict) -> str:

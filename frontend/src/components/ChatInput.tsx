@@ -3,7 +3,7 @@ import { SendHorizontal, Loader2 } from 'lucide-react';
 import { useRag } from '../context/useRag';
 
 export const ChatInput: React.FC = () => {
-  const { sendMessage, isQuerying, selectedDocument } = useRag();
+  const { sendMessage, isQuerying, selectedDocuments } = useRag();
   const [input, setInput] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -39,9 +39,11 @@ export const ChatInput: React.FC = () => {
         onChange={(e) => setInput(e.target.value)}
         onKeyDown={handleKeyDown}
         placeholder={
-          selectedDocument
-            ? `Задайте въпрос относно „${selectedDocument.filename}“…`
-            : 'Задайте въпрос относно вашите документи…'
+          selectedDocuments.length === 1
+            ? `Задайте въпрос относно „${selectedDocuments[0].filename}“…`
+            : selectedDocuments.length > 1
+              ? `Задайте въпрос относно ${selectedDocuments.length} избрани документа…`
+              : 'Задайте въпрос относно вашите документи…'
         }
         rows={1}
         disabled={isQuerying}

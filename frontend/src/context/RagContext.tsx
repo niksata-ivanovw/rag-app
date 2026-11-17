@@ -1,9 +1,38 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import type { DocumentItem, ChatMessage } from '../types';
 import { api } from '../api/client';
 import { RagContext } from './ragContextInstance';
 
 const SESSION_KEY = 'rag_session_id';
+const SELECTED_IDS_KEY = 'rag_selected_doc_ids';
+const LEGACY_SELECTED_KEY = 'rag_selected_doc';
+
+const loadSelectedIds = (): string[] => {
+  try {
+    const saved = localStorage.getItem(SELECTED_IDS_KEY);
+    if (saved) {
+      const parsed: unknown = JSON.parse(saved);
+      if (Array.isArray(parsed)) return parsed.filter((x): x is string => typeof x === 'string');
+    }
+    // Migrate the old single-document selection
+    const legacy = localStorage.getItem(LEGACY_SELECTED_KEY);
+    if (legacy) {
+      localStorage.removeItem(LEGACY_SELECTED_KEY);
+      const doc = JSON.parse(legacy) as Partial<DocumentItem>;
+      if (doc?.id) return [doc.id];
+    }
+  } catch {
+    // corrupted storage: start with no selection
+  }
+  return [];
+};
+
+/** Drops selected ids whose documents no longer exist; keeps the same array if nothing changed. */
+const pruneSelection = (ids: string[], docs: DocumentItem[]): string[] => {
+  const existing = new Set(docs.map((d) => d.id));
+  const kept = ids.filter((id) => existing.has(id));
+  return kept.length === ids.length ? ids : kept;
+};
 
 const newSessionId = (): string =>
   typeof crypto !== 'undefined' && 'randomUUID' in crypto
@@ -23,10 +52,7 @@ const nowTime = () => new Date().toLocaleTimeString([], { hour: '2-digit', minut
 export const RagProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
   const [loadingDocuments, setLoadingDocuments] = useState<boolean>(false);
-  const [selectedDocument, setSelectedDocument] = useState<DocumentItem | null>(() => {
-    const saved = localStorage.getItem('rag_selected_doc');
-    return saved ? JSON.parse(saved) : null;
-  });
+  const [selectedDocumentIds, setSelectedDocumentIds] = useState<string[]>(loadSelectedIds);
 
   const [messages, setMessages] = useState<ChatMessage[]>(() => {
     const saved = localStorage.getItem('rag_chat_messages');
@@ -42,14 +68,16 @@ export const RagProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [isQuerying, setIsQuerying] = useState<boolean>(false);
   const [backendOnline, setBackendOnline] = useState<boolean>(true);
 
-  // Sync selectedDocument to localStorage
+  // Sync selection to localStorage
   useEffect(() => {
-    if (selectedDocument) {
-      localStorage.setItem('rag_selected_doc', JSON.stringify(selectedDocument));
-    } else {
-      localStorage.removeItem('rag_selected_doc');
-    }
-  }, [selectedDocument]);
+    localStorage.setItem(SELECTED_IDS_KEY, JSON.stringify(selectedDocumentIds));
+  }, [selectedDocumentIds]);
+
+  // Keep the order of the document list, not the order of clicking
+  const selectedDocuments = useMemo(() => {
+    const ids = new Set(selectedDocumentIds);
+    return documents.filter((d) => ids.has(d.id));
+  }, [documents, selectedDocumentIds]);
 
   // Sync messages to localStorage
   useEffect(() => {
@@ -61,24 +89,17 @@ export const RagProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setLoadingDocuments(true);
     try {
       const response = await api.getDocuments();
-      setDocuments(response.documents || []);
+      const docs = response.documents || [];
+      setDocuments(docs);
+      setSelectedDocumentIds((prev) => pruneSelection(prev, docs));
       setBackendOnline(true);
-
-      if (selectedDocument) {
-        const stillExists = response.documents.some(
-          (d) => d.id === selectedDocument.id || d.filename === selectedDocument.filename
-        );
-        if (!stillExists) {
-          setSelectedDocument(null);
-        }
-      }
     } catch (err) {
       console.error('Failed to fetch documents:', err);
       setBackendOnline(false);
     } finally {
       setLoadingDocuments(false);
     }
-  }, [selectedDocument]);
+  }, []);
 
   // Initial load without calling setState directly in render phase
   useEffect(() => {
@@ -87,7 +108,9 @@ export const RagProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       try {
         const response = await api.getDocuments();
         if (active) {
-          setDocuments(response.documents || []);
+          const docs = response.documents || [];
+          setDocuments(docs);
+          setSelectedDocumentIds((prev) => pruneSelection(prev, docs));
           setBackendOnline(true);
         }
       } catch (err) {
@@ -115,12 +138,12 @@ export const RagProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, []);
 
   const toggleSelectDocument = (doc: DocumentItem) => {
-    if (selectedDocument && (selectedDocument.id === doc.id || selectedDocument.filename === doc.filename)) {
-      setSelectedDocument(null);
-    } else {
-      setSelectedDocument(doc);
-    }
+    setSelectedDocumentIds((prev) =>
+      prev.includes(doc.id) ? prev.filter((id) => id !== doc.id) : [...prev, doc.id]
+    );
   };
+
+  const clearDocumentSelection = () => setSelectedDocumentIds([]);
 
   const uploadDocument = async (file: File): Promise<{ success: boolean; message: string }> => {
     try {
@@ -144,9 +167,7 @@ export const RagProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const deleteDocument = async (documentId: string): Promise<{ success: boolean; message: string }> => {
     try {
       const result = await api.deleteDocument(documentId);
-      if (selectedDocument && (selectedDocument.id === documentId || selectedDocument.filename === documentId)) {
-        setSelectedDocument(null);
-      }
+      setSelectedDocumentIds((prev) => prev.filter((id) => id !== documentId));
       await fetchDocuments();
       return {
         success: true,
@@ -166,7 +187,8 @@ export const RagProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const sendMessage = async (question: string) => {
     if (!question.trim() || isQuerying) return;
 
-    const targetFile = selectedDocument ? selectedDocument.filename : null;
+    const documentIds = selectedDocuments.map((d) => d.id);
+    const targetFiles = selectedDocuments.map((d) => d.filename);
     const assistantId = `assistant-${Date.now()}`;
 
     const userMessage: ChatMessage = {
@@ -174,7 +196,7 @@ export const RagProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       role: 'user',
       content: question.trim(),
       timestamp: nowTime(),
-      targetFile,
+      targetFiles,
     };
     // Empty placeholder that fills up token by token
     const assistantMessage: ChatMessage = {
@@ -182,7 +204,7 @@ export const RagProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       role: 'assistant',
       content: '',
       timestamp: nowTime(),
-      targetFile,
+      targetFiles,
       streaming: true,
     };
 
@@ -200,7 +222,7 @@ export const RagProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         {
           question: question.trim(),
           top_k: 3,
-          file_name: targetFile ?? undefined,
+          document_ids: documentIds.length > 0 ? documentIds : undefined,
           session_id: sessionIdRef.current,
         },
         (event) => {
@@ -254,9 +276,10 @@ export const RagProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       value={{
         documents,
         loadingDocuments,
-        selectedDocument,
-        setSelectedDocument,
+        selectedDocumentIds,
+        selectedDocuments,
         toggleSelectDocument,
+        clearDocumentSelection,
         fetchDocuments,
         uploadDocument,
         deleteDocument,

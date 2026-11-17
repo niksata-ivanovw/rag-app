@@ -41,7 +41,8 @@ export interface ChunkSource {
 export interface QueryRequest {
   question: string;
   top_k?: number;
-  file_name?: string | null;
+  /** Ids from GET /documents to search in; omitted or empty = all documents */
+  document_ids?: string[];
   session_id?: string;
 }
 
@@ -64,6 +65,9 @@ export interface ChatMessage {
   content: string;
   sources?: ChunkSource[];
   timestamp: string;
+  /** File names the question was scoped to; empty/missing = all documents */
+  targetFiles?: string[];
+  /** @deprecated single-file scope from older saved chats */
   targetFile?: string | null;
   error?: boolean;
   /** True while tokens are still arriving */

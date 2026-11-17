@@ -28,8 +28,8 @@ const STATUS: Record<string, { label: string; tone: string }> = {
 };
 
 export const DocumentCard: React.FC<DocumentCardProps> = ({ document, onDeleteRequest }) => {
-  const { selectedDocument, toggleSelectDocument } = useRag();
-  const isSelected = selectedDocument?.id === document.id || selectedDocument?.filename === document.filename;
+  const { selectedDocumentIds, toggleSelectDocument } = useRag();
+  const isSelected = selectedDocumentIds.includes(document.id);
   const isPdf = document.filename.toLowerCase().endsWith('.pdf');
   const status = STATUS[document.status] ?? { label: 'Без файл в MinIO', tone: 'bad' };
 
@@ -67,7 +67,8 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({ document, onDeleteRe
           type="button"
           className={`select-chip ${isSelected ? 'active' : ''}`}
           onClick={() => toggleSelectDocument(document)}
-          title={isSelected ? 'Търси във всички документи' : 'Търси само в този файл'}
+          aria-pressed={isSelected}
+          title={isSelected ? 'Премахни от търсенето в чата' : 'Добави към търсенето в чата'}
         >
           {isSelected && <Check size={14} />}
           {isSelected ? 'Избран за чата' : 'Използвай в чата'}

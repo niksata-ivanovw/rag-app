@@ -12,6 +12,7 @@ interface ChatMessageItemProps {
 export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({ message }) => {
   const isUser = message.role === 'user';
   const waitingForFirstToken = message.streaming && !message.content;
+  const scope = message.targetFiles ?? (message.targetFile ? [message.targetFile] : []);
 
   return (
     <div className={`msg ${isUser ? 'msg-user' : 'msg-ai'} ${message.error ? 'msg-error' : ''}`}>
@@ -23,10 +24,10 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({ message }) => 
         <div className="msg-meta">
           <span className="msg-author">{isUser ? 'Вие' : 'RAG Асистент'}</span>
           <span className="msg-time">{waitingForFirstToken ? 'Мисли…' : message.timestamp}</span>
-          {isUser && message.targetFile && (
-            <span className="msg-scope" title={`Търсено в: ${message.targetFile}`}>
+          {isUser && scope.length > 0 && (
+            <span className="msg-scope" title={`Търсено в: ${scope.join(', ')}`}>
               <FileText size={11} />
-              {message.targetFile}
+              {scope.length === 1 ? scope[0] : `${scope.length} документа`}
             </span>
           )}
         </div>

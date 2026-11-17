@@ -804,6 +804,9 @@ p {
 }
 
 .scope-menu-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   padding: 6px 10px;
   font-size: 12px;
   font-weight: 600;
@@ -820,6 +823,36 @@ p {
   padding: 9px 10px;
   border-radius: 10px;
   text-align: left;
+}
+
+.scope-clear {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--accent);
+}
+
+.scope-clear:hover {
+  text-decoration: underline;
+}
+
+.scope-check {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.scope-check:disabled {
+  cursor: default;
+}
+
+.scope-item {
+  cursor: pointer;
+  user-select: none;
 }
 
 .scope-item:hover {
