@@ -84,7 +84,7 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
         <div className="modal-body">
           <p className="modal-warning">
             {message ||
-              'Сигурни ли сте, че искате да изтриете този документ? Файлът ще бъде премахнат напълно от MinIO storage и всички съответни векторни ембединги ще бъдат изтрити от pgvector.'}
+              'Сигурни ли сте, че искате да изтриете този документ? Файлът и неговите векторни ембединги ще бъде премахнати напълно от MinIO и pgvector.'}
           </p>
           <div className="modal-callout">
             <span>

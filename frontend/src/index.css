@@ -611,9 +611,17 @@ p {
 .msg-bubble {
   padding: 14px 18px;
   border-radius: 18px;
-  white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+
+.msg-bubble.markdown { white-space: normal; }
+.msg-bubble.markdown > :first-child { margin-top: 0; }
+.msg-bubble.markdown > :last-child  { margin-bottom: 0; }
+.msg-bubble.markdown p { margin: 0 0 0.6em; }
+.msg-bubble.markdown ul, .msg-bubble.markdown ol { margin: 0 0 0.6em; padding-left: 1.4em; }
+.msg-bubble.markdown code { background: var(--surface-3, rgba(0,0,0,.08)); padding: 1px 5px; border-radius: 4px; font-size: .9em; }
+.msg-bubble.markdown pre { overflow-x: auto; padding: 10px 12px; border-radius: 8px; background: rgba(0,0,0,.08); }
+.msg-bubble.markdown pre code { background: none; padding: 0; }
 
 .msg-user .msg-bubble {
   background: var(--accent);

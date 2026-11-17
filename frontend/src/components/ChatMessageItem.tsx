@@ -2,6 +2,8 @@ import React from 'react';
 import { User, Sparkles, AlertTriangle, FileText } from 'lucide-react';
 import type { ChatMessage } from '../types';
 import { SourceCollapsible } from './SourceCollapsible';
+import ReactMarkDown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 interface ChatMessageItemProps {
   message: ChatMessage;
@@ -36,8 +38,8 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({ message }) => 
             <span className="typing-dot" />
           </div>
         ) : (
-          <div className="msg-bubble">
-            {message.content}
+          <div className="msg-bubble markdown">
+            <ReactMarkDown remarkPlugins={[remarkGfm]}>{message.content}</ReactMarkDown>
             {message.streaming && <span className="stream-caret" aria-hidden="true" />}
           </div>
         )}
