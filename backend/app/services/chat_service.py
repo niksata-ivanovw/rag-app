@@ -144,6 +144,29 @@ class ChatSessionStore:
         with self._lock:
             self._memories.pop(session_id, None)
 
+    def drop_last_turn(self, session_id: str, question: str) -> int:
+        """
+        Removes the last question (and its answer, if one was saved) so the question can be answered again
+        without the old answer in the history. Only drops messages that belong to `question`, so a turn
+        that failed before reaching memory never costs the user an earlier, unrelated turn.
+        Returns how many messages were removed.
+        """
+        with self._lock:
+            memory = self._memories.get(session_id)
+            if memory is None:
+                return 0
+            messages = memory.get_all()
+            is_question = lambda m: m.role == MessageRole.USER and (m.content or "").strip() == question.strip()
+
+            if len(messages) >= 2 and messages[-1].role == MessageRole.ASSISTANT and is_question(messages[-2]):
+                drop = 2
+            elif messages and is_question(messages[-1]):
+                drop = 1  # previous attempt failed mid-stream: the question was saved, the answer wasn't
+            else:
+                return 0
+            memory.set(messages[:-drop])
+            return drop
+
 
 class RAGChatEngine(CondensePlusContextChatEngine):
     """

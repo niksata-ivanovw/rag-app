@@ -51,6 +51,8 @@ export interface QueryRequest {
   /** Ids from GET /documents to search in; omitted or empty = all documents */
   document_ids?: string[];
   session_id?: string;
+  /** Re-answer the last question: the backend drops the previous answer from the chat history first */
+  regenerate?: boolean;
 }
 
 /** One NDJSON line from POST /query/stream */

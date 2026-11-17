@@ -23,6 +23,9 @@ export interface RagContextType {
   messages: ChatMessage[];
   isQuerying: boolean;
   sendMessage: (question: string) => Promise<void>;
+  /** The last question in the chat (null if none); what "Генерирай отново" re-asks */
+  lastQuestion: string | null;
+  regenerateLastAnswer: () => Promise<void>;
   clearMessages: () => void;
   backendOnline: boolean;
 }

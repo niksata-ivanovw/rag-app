@@ -19,6 +19,10 @@ class QueryRequest(BaseModel):
         description="ID-та на документи (от GET /documents), в които да се търси. Празен списък или null = всички документи.",
     )
     session_id: str = Field(default="default", min_length=1, max_length=128, description="ID на чат сесията; историята на разговора се пази по него")
+    regenerate: bool = Field(
+        default=False,
+        description="Генерира наново отговора на последния въпрос: предишният ход се маха от историята преди отговора",
+    )
 
     @field_validator("document_ids")
     @classmethod

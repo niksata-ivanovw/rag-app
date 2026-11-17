@@ -225,46 +225,38 @@ export const RagProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
-  const sendMessage = async (question: string) => {
-    if (!question.trim() || isQuerying) return;
+  /** Index of the last question in the chat, or -1 */
+  const lastUserIndex = (list: ChatMessage[]): number => {
+    for (let i = list.length - 1; i >= 0; i--) if (list[i].role === 'user') return i;
+    return -1;
+  };
 
-    const documentIds = selectedDocuments.map((d) => d.id);
-    const targetFiles = selectedDocuments.map((d) => d.filename);
-    const assistantId = `assistant-${Date.now()}`;
+  /** The last question sent, derived from the (persisted) chat so it survives reloads */
+  const lastQuestion = useMemo(() => {
+    const i = lastUserIndex(messages);
+    return i >= 0 ? messages[i].content : null;
+  }, [messages]);
 
-    const userMessage: ChatMessage = {
-      id: `user-${Date.now()}`,
-      role: 'user',
-      content: question.trim(),
-      timestamp: nowTime(),
-      targetFiles,
-    };
-    // Empty placeholder that fills up token by token
-    const assistantMessage: ChatMessage = {
-      id: assistantId,
-      role: 'assistant',
-      content: '',
-      timestamp: nowTime(),
-      targetFiles,
-      streaming: true,
-    };
-
+  /**
+   * Streams an answer into the assistant message `assistantId` (already in `messages`).
+   * With `regenerate`, the backend first drops the previous answer to this question from its history.
+   */
+  const streamAnswer = async (question: string, assistantId: string, documentIds: string[], regenerate: boolean) => {
     const updateAssistant = (update: (m: ChatMessage) => ChatMessage) =>
       setMessages((prev) => prev.map((m) => (m.id === assistantId ? update(m) : m)));
 
-    setMessages((prev) => [...prev, userMessage, assistantMessage]);
     setIsQuerying(true);
-
     const controller = new AbortController();
     abortRef.current = controller;
 
     try {
       await api.queryStream(
         {
-          question: question.trim(),
+          question,
           top_k: 3,
           document_ids: documentIds.length > 0 ? documentIds : undefined,
           session_id: sessionIdRef.current,
+          regenerate: regenerate || undefined,
         },
         (event) => {
           switch (event.type) {
@@ -300,6 +292,51 @@ export const RagProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  /** Empty assistant message that fills up token by token */
+  const newAssistantPlaceholder = (targetFiles: string[]): ChatMessage => ({
+    id: `assistant-${Date.now()}`,
+    role: 'assistant',
+    content: '',
+    timestamp: nowTime(),
+    targetFiles,
+    streaming: true,
+  });
+
+  const sendMessage = async (question: string) => {
+    if (!question.trim() || isQuerying) return;
+
+    const documentIds = selectedDocuments.map((d) => d.id);
+    const targetFiles = selectedDocuments.map((d) => d.filename);
+    const userMessage: ChatMessage = {
+      id: `user-${Date.now()}`,
+      role: 'user',
+      content: question.trim(),
+      timestamp: nowTime(),
+      targetFiles,
+    };
+    const assistantMessage = newAssistantPlaceholder(targetFiles);
+
+    setMessages((prev) => [...prev, userMessage, assistantMessage]);
+    await streamAnswer(userMessage.content, assistantMessage.id, documentIds, false);
+  };
+
+  /** Asks the last question again and replaces its answer with a new one (uses the current document scope). */
+  const regenerateLastAnswer = async () => {
+    if (isQuerying || lastQuestion === null) return;
+
+    const documentIds = selectedDocuments.map((d) => d.id);
+    const targetFiles = selectedDocuments.map((d) => d.filename);
+    const assistantMessage = newAssistantPlaceholder(targetFiles);
+
+    setMessages((prev) => {
+      const i = lastUserIndex(prev);
+      if (i < 0) return prev;
+      // keep the question (with the scope it is now asked in), drop the old answer after it
+      return [...prev.slice(0, i), { ...prev[i], targetFiles }, assistantMessage];
+    });
+    await streamAnswer(lastQuestion, assistantMessage.id, documentIds, true);
+  };
+
   const clearMessages = () => {
     abortRef.current?.abort();
     setMessages([]);
@@ -327,6 +364,8 @@ export const RagProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         messages,
         isQuerying,
         sendMessage,
+        lastQuestion,
+        regenerateLastAnswer,
         clearMessages,
         backendOnline,
       }}

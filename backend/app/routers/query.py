@@ -32,6 +32,8 @@ def get_condense_llm(request: Request) -> Ollama:
 
 
 def _make_engine(request: QueryRequest, db_pool, embed_model, llm, condense_llm, sessions: ChatSessionStore):
+    if request.regenerate:
+        sessions.drop_last_turn(request.session_id, request.question)
     retriever = PgVectorRetriever(
         VectorRetrieverService(db_pool, embed_model),
         top_k=request.top_k,

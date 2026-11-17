@@ -12,7 +12,7 @@ const SAMPLE_PROMPTS = [
 ];
 
 export const ChatPage: React.FC = () => {
-  const { messages, isQuerying, clearMessages, sendMessage } = useRag();
+  const { messages, isQuerying, clearMessages, sendMessage, lastQuestion, regenerateLastAnswer } = useRag();
   const endRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -63,9 +63,13 @@ export const ChatPage: React.FC = () => {
       </div>
 
       <div className="chat-foot">
-        {lastIsAssistant && !isQuerying && (
-          // Regenerate: placeholder, no functionality yet
-          <button type="button" className="btn btn-outline btn-sm regenerate-btn">
+        {lastIsAssistant && !isQuerying && lastQuestion !== null && (
+          <button
+            type="button"
+            className="btn btn-outline btn-sm regenerate-btn"
+            onClick={regenerateLastAnswer}
+            title={`Нов отговор на: „${lastQuestion}“`}
+          >
             <RotateCcw size={15} />
             <span>Генерирай отново</span>
           </button>
