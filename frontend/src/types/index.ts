@@ -28,6 +28,13 @@ export interface UploadResponse {
   message: string;
 }
 
+/** `detail` of a 415 Unsupported Media Type response from the upload endpoints */
+export interface InvalidFileDetail {
+  code: 'unsupported_extension' | 'empty_file' | 'content_mismatch' | 'corrupted_file' | string;
+  message: string;
+  detected_mime?: string | null;
+}
+
 export interface ChunkSource {
   content: string;
   similarity_score: number;

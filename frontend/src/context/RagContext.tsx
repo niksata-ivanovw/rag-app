@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import type { DocumentItem, ChatMessage } from '../types';
+import type { DocumentItem, ChatMessage, InvalidFileDetail } from '../types';
 import { api } from '../api/client';
 import { RagContext, type UploadResult } from './ragContextInstance';
 
@@ -45,6 +45,36 @@ const loadSessionId = (): string => {
   const id = newSessionId();
   localStorage.setItem(SESSION_KEY, id);
   return id;
+};
+
+const MIME_LABELS: Record<string, string> = {
+  'application/pdf': 'PDF',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'DOCX',
+  'application/zip': 'ZIP архив',
+  'application/msword': 'стар Word (.doc)',
+};
+
+/** Bulgarian text for a 415 response from the upload endpoint */
+const invalidFileMessage = (fileName: string, detail?: InvalidFileDetail | string): string => {
+  if (!detail || typeof detail === 'string') {
+    return `Файлът „${fileName}“ не е валиден PDF или DOCX документ.`;
+  }
+  switch (detail.code) {
+    case 'unsupported_extension':
+      return `Неподдържан тип файл „${fileName}“. Поддържат се само .pdf и .docx.`;
+    case 'empty_file':
+      return `Файлът „${fileName}“ е празен.`;
+    case 'content_mismatch': {
+      const actual = detail.detected_mime
+        ? `всъщност е ${MIME_LABELS[detail.detected_mime] ?? detail.detected_mime}`
+        : 'съдържанието му не е разпознат формат';
+      return `Файлът „${fileName}“ не е това, което подсказва разширението му – ${actual}.`;
+    }
+    case 'corrupted_file':
+      return `Файлът „${fileName}“ не може да бъде отворен. Вероятно е повреден или защитен с парола.`;
+    default:
+      return detail.message || `Файлът „${fileName}“ не е валиден PDF или DOCX документ.`;
+  }
 };
 
 const nowTime = () => new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -156,7 +186,10 @@ export const RagProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch (err: unknown) {
       let errorMsg = 'Грешка при качване на файла.';
       if (err && typeof err === 'object' && 'response' in err) {
-        const axErr = err as { response?: { status?: number; data?: { detail?: string } } };
+        const axErr = err as { response?: { status?: number; data?: { detail?: string | InvalidFileDetail } } };
+        if (axErr.response?.status === 415) {
+          return { success: false, message: invalidFileMessage(file.name, axErr.response.data?.detail) };
+        }
         if (axErr.response?.status === 409) {
           return {
             success: false,
@@ -164,7 +197,8 @@ export const RagProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             message: `Документ с име „${file.name}“ вече съществува. Изтрийте стария или преименувайте файла и опитайте отново.`,
           };
         }
-        errorMsg = axErr.response?.data?.detail || errorMsg;
+        const detail = axErr.response?.data?.detail;
+        if (typeof detail === 'string' && detail) errorMsg = detail;
       }
       console.error('Upload error:', err);
       return { success: false, message: errorMsg };
