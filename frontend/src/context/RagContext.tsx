@@ -7,21 +7,17 @@ const SESSION_KEY = 'rag_session_id';
 /** abort() reason that means "the user pressed Stop" (clearing the chat aborts without it) */
 const STOP_REASON = 'user-stopped';
 const SELECTED_IDS_KEY = 'rag_selected_doc_ids';
-const LEGACY_SELECTED_KEY = 'rag_selected_doc';
+// Selections saved when documents were identified by file name; meaningless now
+const LEGACY_KEYS = ['rag_selected_doc'];
 
-const loadSelectedIds = (): string[] => {
+const loadSelectedIds = (): number[] => {
   try {
+    LEGACY_KEYS.forEach((key) => localStorage.removeItem(key));
     const saved = localStorage.getItem(SELECTED_IDS_KEY);
     if (saved) {
       const parsed: unknown = JSON.parse(saved);
-      if (Array.isArray(parsed)) return parsed.filter((x): x is string => typeof x === 'string');
-    }
-    // Migrate the old single-document selection
-    const legacy = localStorage.getItem(LEGACY_SELECTED_KEY);
-    if (legacy) {
-      localStorage.removeItem(LEGACY_SELECTED_KEY);
-      const doc = JSON.parse(legacy) as Partial<DocumentItem>;
-      if (doc?.id) return [doc.id];
+      // ids used to be file names (strings); those are dropped here
+      if (Array.isArray(parsed)) return parsed.filter((x): x is number => Number.isInteger(x));
     }
   } catch {
     // corrupted storage: start with no selection
@@ -30,7 +26,7 @@ const loadSelectedIds = (): string[] => {
 };
 
 /** Drops selected ids whose documents no longer exist; keeps the same array if nothing changed. */
-const pruneSelection = (ids: string[], docs: DocumentItem[]): string[] => {
+const pruneSelection = (ids: number[], docs: DocumentItem[]): number[] => {
   const existing = new Set(docs.map((d) => d.id));
   const kept = ids.filter((id) => existing.has(id));
   return kept.length === ids.length ? ids : kept;
@@ -84,7 +80,7 @@ const nowTime = () => new Date().toLocaleTimeString([], { hour: '2-digit', minut
 export const RagProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
   const [loadingDocuments, setLoadingDocuments] = useState<boolean>(false);
-  const [selectedDocumentIds, setSelectedDocumentIds] = useState<string[]>(loadSelectedIds);
+  const [selectedDocumentIds, setSelectedDocumentIds] = useState<number[]>(loadSelectedIds);
 
   const [messages, setMessages] = useState<ChatMessage[]>(() => {
     const saved = localStorage.getItem('rag_chat_messages');
@@ -207,7 +203,7 @@ export const RagProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
-  const deleteDocument = async (documentId: string): Promise<{ success: boolean; message: string }> => {
+  const deleteDocument = async (documentId: number): Promise<{ success: boolean; message: string }> => {
     try {
       const result = await api.deleteDocument(documentId);
       setSelectedDocumentIds((prev) => prev.filter((id) => id !== documentId));
@@ -243,7 +239,7 @@ export const RagProvider: React.FC<{ children: React.ReactNode }> = ({ children 
    * Streams an answer into the assistant message `assistantId` (already in `messages`).
    * With `regenerate`, the backend first drops the previous answer to this question from its history.
    */
-  const streamAnswer = async (question: string, assistantId: string, documentIds: string[], regenerate: boolean) => {
+  const streamAnswer = async (question: string, assistantId: string, documentIds: number[], regenerate: boolean) => {
     const updateAssistant = (update: (m: ChatMessage) => ChatMessage) =>
       setMessages((prev) => prev.map((m) => (m.id === assistantId ? update(m) : m)));
 

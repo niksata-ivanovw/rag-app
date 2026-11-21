@@ -17,7 +17,7 @@ export const DocumentsPage: React.FC = () => {
   const handleConfirmDelete = async () => {
     if (!documentToDelete) return;
     setIsDeleting(true);
-    const result = await deleteDocument(documentToDelete.id || documentToDelete.filename);
+    const result = await deleteDocument(documentToDelete.id);
     setIsDeleting(false);
     setDocumentToDelete(null);
     setActionNotice(result.message);
@@ -110,7 +110,7 @@ export const DocumentsPage: React.FC = () => {
         ) : filteredDocs.length > 0 ? (
           <div className="doc-grid">
             {filteredDocs.map((doc) => (
-              <DocumentCard key={doc.id || doc.filename} document={doc} onDeleteRequest={setDocumentToDelete} />
+              <DocumentCard key={doc.id} document={doc} onDeleteRequest={setDocumentToDelete} />
             ))}
           </div>
         ) : (

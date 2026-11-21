@@ -11,6 +11,7 @@ from llama_index.llms.ollama import Ollama
 
 from app.dependencies import DatabasePool, get_db_pool, get_embed_model, get_llm_client
 from app.schemas.query import QueryRequest, QueryResponse
+from app.security import get_current_user_id
 from app.services.chat_service import (
     ChatSessionStore,
     PgVectorRetriever,
@@ -32,18 +33,25 @@ def get_condense_llm(request: Request) -> Ollama:
     return request.app.state.condense_llm
 
 
-def _make_engine(request: QueryRequest, db_pool, embed_model, llm, condense_llm, sessions: ChatSessionStore):
+def _session_key(user_id: int, session_id: str) -> str:
+    # Chat memory is per user: a session id sent by one user can never reach another user's history
+    return f"{user_id}:{session_id}"
+
+
+def _make_engine(request: QueryRequest, user_id: int, db_pool, embed_model, llm, condense_llm, sessions: ChatSessionStore):
+    session_key = _session_key(user_id, request.session_id)
     if request.regenerate:
-        sessions.drop_last_turn(request.session_id, request.question)
+        sessions.drop_last_turn(session_key, request.question)
     retriever = PgVectorRetriever(
         VectorRetrieverService(db_pool, embed_model),
+        user_id=user_id,
         top_k=request.top_k,
         document_ids=request.document_ids,
     )
     return build_chat_engine(
         retriever,
         llm,
-        sessions.get(request.session_id),
+        sessions.get(session_key),
         condense_llm=condense_llm,
         document_ids=request.document_ids,
     )
@@ -56,6 +64,7 @@ def _ndjson(event: dict) -> str:
 @router.post("", response_model=QueryResponse)
 def handle_query(
         request: QueryRequest,
+        user_id: int = Depends(get_current_user_id),
         db_pool: DatabasePool = Depends(get_db_pool),
         embed_model: OllamaEmbedding = Depends(get_embed_model),
         llm: Ollama = Depends(get_llm_client),
@@ -64,7 +73,7 @@ def handle_query(
 ):
     """Non-streaming variant: returns the whole answer at once."""
     try:
-        engine = _make_engine(request, db_pool, embed_model, llm, condense_llm, sessions)
+        engine = _make_engine(request, user_id, db_pool, embed_model, llm, condense_llm, sessions)
         response = engine.chat(request.question)
         sources = [node_to_source(n) for n in response.source_nodes]
         return QueryResponse(question=request.question, answer=response.response, sources=sources)
@@ -76,6 +85,7 @@ def handle_query(
 def handle_query_stream(
         request: QueryRequest,
         http_request: Request,
+        user_id: int = Depends(get_current_user_id),
         db_pool: DatabasePool = Depends(get_db_pool),
         embed_model: OllamaEmbedding = Depends(get_embed_model),
         llm: Ollama = Depends(get_llm_client),
@@ -94,7 +104,7 @@ def handle_query_stream(
     """
     # Retrieval and prompt setup run here, so failures still return a proper HTTP error.
     try:
-        engine = _make_engine(request, db_pool, embed_model, llm, condense_llm, sessions)
+        engine = _make_engine(request, user_id, db_pool, embed_model, llm, condense_llm, sessions)
         response: StreamingAgentChatResponse = engine.stream_chat(request.question)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error while processing the question: {str(e)}")
@@ -130,6 +140,10 @@ def handle_query_stream(
 
 
 @router.delete("/sessions/{session_id}", status_code=204)
-def reset_session(session_id: str, sessions: ChatSessionStore = Depends(get_session_store)):
-    """Forget the conversation history of a chat session."""
-    sessions.reset(session_id)
+def reset_session(
+        session_id: str,
+        user_id: int = Depends(get_current_user_id),
+        sessions: ChatSessionStore = Depends(get_session_store),
+):
+    """Forget the conversation history of one of the current user's chat sessions."""
+    sessions.reset(_session_key(user_id, session_id))

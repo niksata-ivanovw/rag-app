@@ -33,12 +33,12 @@ even if it was discussed earlier in the conversation."""
 SCOPE_KEY = "rag_scope"
 
 
-def scope_of(document_ids: Optional[Sequence[str]]) -> Optional[List[str]]:
+def scope_of(document_ids: Optional[Sequence[int]]) -> Optional[List[int]]:
     """Canonical scope: None = all documents, otherwise a sorted list of document ids."""
     return sorted(set(document_ids)) if document_ids else None
 
 
-def scope_covers(current: Optional[List[str]], earlier: Optional[List[str]]) -> bool:
+def scope_covers(current: Optional[List[int]], earlier: Optional[List[int]]) -> bool:
     """True if everything an earlier turn could see is still searchable in the current scope."""
     if current is None:
         return True
@@ -47,7 +47,7 @@ def scope_covers(current: Optional[List[str]], earlier: Optional[List[str]]) -> 
     return set(earlier) <= set(current)
 
 
-def filter_history_by_scope(history: List[ChatMessage], scope: Optional[List[str]]) -> List[ChatMessage]:
+def filter_history_by_scope(history: List[ChatMessage], scope: Optional[List[int]]) -> List[ChatMessage]:
     """
     Drops question/answer turns that were answered from documents outside the current scope,
     so the LLM can't repeat facts from a document the user has since deselected.
@@ -69,7 +69,7 @@ class ScopedMemory:
     with that request's scope. Everything else is delegated to the real memory.
     """
 
-    def __init__(self, inner: ChatMemoryBuffer, scope: Optional[List[str]]):
+    def __init__(self, inner: ChatMemoryBuffer, scope: Optional[List[int]]):
         self._inner = inner
         self._scope = scope
 
@@ -91,16 +91,23 @@ class PgVectorRetriever(BaseRetriever):
     def __init__(
         self,
         service: VectorRetrieverService,
+        user_id: int,
         top_k: int = 3,
-        document_ids: Optional[List[str]] = None,
+        document_ids: Optional[List[int]] = None,
     ):
         super().__init__()
         self._service = service
+        self._user_id = user_id
         self._top_k = top_k
         self._document_ids = document_ids
 
     def _retrieve(self, query_bundle: QueryBundle) -> List[NodeWithScore]:
-        sources = self._service.search(query_bundle.query_str, top_k=self._top_k, document_ids=self._document_ids)
+        sources = self._service.search(
+            query_bundle.query_str,
+            user_id=self._user_id,
+            top_k=self._top_k,
+            document_ids=self._document_ids,
+        )
         return [
             NodeWithScore(node=TextNode(text=s.content, metadata=s.metadata), score=s.similarity_score)
             for s in sources
@@ -192,7 +199,7 @@ class RAGChatEngine(CondensePlusContextChatEngine):
     """
 
     condense_llm: Optional[LLM] = None
-    scope: Optional[List[str]] = None
+    scope: Optional[List[int]] = None
     # Set it to stop a running stream_chat (e.g. the client disconnected)
     cancel_event: Optional[threading.Event] = None
 
@@ -230,7 +237,7 @@ def build_chat_engine(
     llm: LLM,
     memory: ChatMemoryBuffer,
     condense_llm: Optional[LLM] = None,
-    document_ids: Optional[Sequence[str]] = None,
+    document_ids: Optional[Sequence[int]] = None,
 ) -> RAGChatEngine:
     scope = scope_of(document_ids)
     engine = RAGChatEngine.from_defaults(

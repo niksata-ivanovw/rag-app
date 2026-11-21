@@ -4,7 +4,7 @@ from pydantic import BaseModel
 
 
 class DocumentItem(BaseModel):
-    id: str
+    id: int
     filename: str
     upload_date: Optional[datetime] = None
     chunks_count: int
@@ -18,7 +18,7 @@ class DocumentListResponse(BaseModel):
 
 
 class DocumentDeleteResponse(BaseModel):
-    document_id: str
+    document_id: int
     filename: str
     deleted_from_minio: bool
     deleted_chunks_count: int

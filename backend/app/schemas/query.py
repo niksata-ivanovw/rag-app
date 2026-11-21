@@ -13,7 +13,7 @@ class ChunkSource(BaseModel):
 class QueryRequest(BaseModel):
     question: str = Field(..., min_length=2, example="Колко точки получава човекът на позиция 4?")
     top_k: int = Field(default=3, ge=1, le=10, description="Брой Резултати от търсенето")
-    document_ids: Optional[List[str]] = Field(
+    document_ids: Optional[List[int]] = Field(
         default=None,
         max_length=200,
         description="ID-та на документи (от GET /documents), в които да се търси. Празен списък или null = всички документи.",
@@ -26,11 +26,10 @@ class QueryRequest(BaseModel):
 
     @field_validator("document_ids")
     @classmethod
-    def _normalize_document_ids(cls, ids: Optional[List[str]]) -> Optional[List[str]]:
+    def _normalize_document_ids(cls, ids: Optional[List[int]]) -> Optional[List[int]]:
         if ids is None:
             return None
-        # strip, drop empty values and duplicates while keeping order
-        return list(dict.fromkeys(i.strip() for i in ids if i and i.strip()))
+        return list(dict.fromkeys(ids))  # drop duplicates, keep order
 
 class QueryResponse(BaseModel):
     question: str

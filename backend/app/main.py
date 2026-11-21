@@ -17,7 +17,7 @@ from app.services.storage_service import MinioStorageService
 sys.path.append(str(Path(__file__).resolve().parent))
 
 from app.dependencies import DatabasePool
-from app.routers import query, upload, documents
+from app.routers import auth, query, upload, documents
 
 
 logging.basicConfig(
@@ -72,6 +72,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(auth.router)
 app.include_router(query.router)
 app.include_router(upload.router)
 app.include_router(documents.router)

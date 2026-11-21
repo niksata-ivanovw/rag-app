@@ -1,28 +1,41 @@
 from fastapi import APIRouter, UploadFile, Depends, File, HTTPException, status
-from app.schemas.upload import UploadResponse
-from app.dependencies import get_db_pool, get_embed_model, get_storage_service, DatabasePool
-from app.services.file_validation import InvalidFileError, validate_document
-from app.services.ingestion_service import IngestionService
-from app.services.storage_service import MinioStorageService
 from llama_index.embeddings.ollama import OllamaEmbedding
 
+from app.dependencies import DatabasePool, get_db_pool, get_embed_model, get_storage_service
+from app.security import get_current_user_id
+from app.schemas.upload import UploadResponse
+from app.services import document_repository
+from app.services.file_validation import InvalidFileError, validate_document
+from app.services.ingestion_service import DuplicateDocumentError, IngestionService
+from app.services.storage_service import MinioStorageService
+
 router = APIRouter(prefix="/upload", tags=["Upload"])
+
+
+def _duplicate(filename: str) -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_409_CONFLICT,
+        detail=f"A document named '{filename}' already exists. Delete it first or rename the file.",
+    )
+
 
 @router.post(
     "",
     response_model=UploadResponse,
     responses={
-        409: {"description": "A document with the same file name already exists"},
+        401: {"description": "Not logged in"},
+        409: {"description": "You already have a document with the same file name"},
         415: {"description": "Not a valid PDF/DOCX: wrong extension, content does not match it, or corrupted"},
     },
 )
 async def handle_upload(
         file: UploadFile = File(...),
+        user_id: int = Depends(get_current_user_id),
         db_pool: DatabasePool = Depends(get_db_pool),
         embed_model: OllamaEmbedding = Depends(get_embed_model),
-        storage_service: MinioStorageService = Depends(get_storage_service)
+        storage_service: MinioStorageService = Depends(get_storage_service),
 ):
-    filename = file.filename or ""
+    filename = (file.filename or "").strip()
     file_bytes = await file.read()
 
     # Check the real content (magic bytes + the file actually opens) before anything is stored
@@ -31,38 +44,33 @@ async def handle_upload(
     except InvalidFileError as e:
         raise HTTPException(status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE, detail=e.to_detail())
 
-    # Documents are identified by file name, so uploading the same name again would silently
-    # overwrite the stored file and re-index it. Refuse instead; the user can delete the old one first.
-    ingestion = IngestionService(db_pool, embed_model)
+    # Names are unique per user. Checked up front to skip parsing/embedding a file that would be refused;
+    # the UNIQUE (user_id, filename) constraint still catches two uploads racing each other.
     try:
-        in_storage = storage_service.get_file_stat(file.filename) is not None
-        in_index = ingestion.is_indexed(file.filename)
+        exists = document_repository.filename_exists(db_pool, user_id, filename)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error while checking for an existing document: {str(e)}")
-    if in_storage or in_index:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=f"A document named '{file.filename}' already exists. Delete it first or rename the file.",
-        )
+    if exists:
+        raise _duplicate(filename)
 
     try:
-        storage_service.upload_file(
-            filename=file.filename,
+        result = IngestionService(db_pool, embed_model).ingest(
+            user_id=user_id,
+            filename=filename,
             file_bytes=file_bytes,
-            content_type=mime_type,  # verified type, not the one the browser claimed
+            mime_type=mime_type,
+            storage=storage_service,
         )
+    except DuplicateDocumentError:
+        raise _duplicate(filename)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error with MinIO: {str(e)}")
-
-    try:
-        chunks_count = ingestion.ingest_bytes(file.filename, file_bytes)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error with pgvector: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error while storing and indexing the document: {str(e)}")
 
     return UploadResponse(
-        filename=file.filename,
+        document_id=result.document_id,
+        filename=filename,
         minio_bucket=storage_service.bucket_name,
-        chunks_indexed=chunks_count,
+        chunks_indexed=result.chunks_count,
         status="completed",
-        message=f"{file.filename} has been successfully processed and {chunks_count} chunks were created."
+        message=f"{filename} has been successfully processed and {result.chunks_count} chunks were created.",
     )

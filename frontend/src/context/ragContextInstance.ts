@@ -12,14 +12,14 @@ export interface RagContextType {
   documents: DocumentItem[];
   loadingDocuments: boolean;
   /** Ids of the documents the chat searches in; empty = all documents */
-  selectedDocumentIds: string[];
+  selectedDocumentIds: number[];
   /** The selected ids resolved to documents (only ones that still exist) */
   selectedDocuments: DocumentItem[];
   toggleSelectDocument: (doc: DocumentItem) => void;
   clearDocumentSelection: () => void;
   fetchDocuments: () => Promise<void>;
   uploadDocument: (file: File) => Promise<UploadResult>;
-  deleteDocument: (documentId: string) => Promise<{ success: boolean; message: string }>;
+  deleteDocument: (documentId: number) => Promise<{ success: boolean; message: string }>;
   messages: ChatMessage[];
   isQuerying: boolean;
   sendMessage: (question: string) => Promise<void>;

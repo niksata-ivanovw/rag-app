@@ -36,9 +36,8 @@ export const api = {
     return response.data;
   },
 
-  async deleteDocument(documentId: string): Promise<DocumentDeleteResponse> {
-    const encodedId = encodeURIComponent(documentId);
-    const response = await apiClient.delete<DocumentDeleteResponse>(`/documents/${encodedId}`);
+  async deleteDocument(documentId: number): Promise<DocumentDeleteResponse> {
+    const response = await apiClient.delete<DocumentDeleteResponse>(`/documents/${documentId}`);
     return response.data;
   },
 

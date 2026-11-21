@@ -42,6 +42,7 @@ rag-backend/
 │
 ├── scripts/                     # Standalone CLI tools & utilities
 │   ├── batch_ingest.py          # Batch indexing of local document directories
+│   ├── migrate.py               # Applies the SQL migrations in migrations/
 │   ├── test_search.py           # Quick CLI semantic search verification
 │   └── print_content.py         # Document parsing debug utility
 │
@@ -103,7 +104,31 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### 2. Run the FastAPI Application
+### 2. Create / Update the Database Schema
+```bash
+python scripts/migrate.py            # applies pending SQL files from migrations/, each exactly once
+python scripts/migrate.py --status   # shows applied / pending migrations
+```
+Tables: `users`, `documents` (each owned by a user), `document_chunks` (each belongs to a document).
+A user only ever sees and searches their own documents.
+
+### 3. Configure Authentication
+Users log in with email + password and get a JWT access token (`Authorization: Bearer <token>`).
+Every document, upload and query endpoint requires it; only `/auth/register`, `/auth/login` and `/health` are public.
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `RAG_JWT_SECRET` | random per start | Secret that signs tokens. **Set it** (e.g. `python -c "import secrets; print(secrets.token_urlsafe(48))"`), otherwise every restart logs everyone out. |
+| `RAG_JWT_EXPIRE_MINUTES` | `720` | Token lifetime (12 h). |
+
+```bash
+curl -X POST localhost:8000/auth/register -H "Content-Type: application/json" -d '{"email":"me@example.com","password":"a-long-passphrase"}'
+curl -X POST localhost:8000/auth/login -d "username=me@example.com&password=a-long-passphrase"   # -> {"access_token": ...}
+curl localhost:8000/documents -H "Authorization: Bearer <access_token>"
+```
+In Swagger (`/docs`), use the **Authorize** button with the same email/password.
+
+### 4. Run the FastAPI Application
 ```bash
 uvicorn app.main:app --reload --port 8000
 ```
@@ -171,7 +196,7 @@ Uploads a `.docx` or `.pdf` file via `multipart/form-data`.
 
 * **Batch Ingest Local Documents:**
   ```bash
-  python scripts/batch_ingest.py --dir path/to/folder
+  python scripts/batch_ingest.py --email owner@example.com --dir path/to/folder   # the user must already exist
   ```
 * **CLI Semantic Search Test:**
   ```bash

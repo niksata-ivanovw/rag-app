@@ -1,5 +1,6 @@
 export interface DocumentItem {
-  id: string;
+  /** Row id in the backend's `documents` table */
+  id: number;
   filename: string;
   upload_date: string | null;
   chunks_count: number;
@@ -13,7 +14,7 @@ export interface DocumentListResponse {
 }
 
 export interface DocumentDeleteResponse {
-  document_id: string;
+  document_id: number;
   filename: string;
   deleted_from_minio: boolean;
   deleted_chunks_count: number;
@@ -21,6 +22,7 @@ export interface DocumentDeleteResponse {
 }
 
 export interface UploadResponse {
+  document_id: number;
   filename: string;
   minio_bucket: string;
   chunks_indexed: number;
@@ -49,7 +51,7 @@ export interface QueryRequest {
   question: string;
   top_k?: number;
   /** Ids from GET /documents to search in; omitted or empty = all documents */
-  document_ids?: string[];
+  document_ids?: number[];
   session_id?: string;
   /** Re-answer the last question: the backend drops the previous answer from the chat history first */
   regenerate?: boolean;
