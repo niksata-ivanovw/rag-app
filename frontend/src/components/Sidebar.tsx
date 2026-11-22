@@ -1,11 +1,19 @@
 import React from 'react';
-import { NavLink, Link } from 'react-router-dom';
+import { NavLink, Link, useNavigate } from 'react-router-dom';
 import { LogOut, Sparkles } from 'lucide-react';
 import { useRag } from '../context/useRag';
+import { useAuth } from '../context/useAuth';
 import { NAV_ITEMS } from './navItems';
 
 export const Sidebar: React.FC = () => {
   const { documents } = useRag();
+  const { logout } = useAuth();
+  const navigate = useNavigate();
+
+  const onLogout = () => {
+    logout();
+    navigate('/login', { replace: true });
+  };
 
   return (
     <aside className="sidebar">
@@ -35,8 +43,7 @@ export const Sidebar: React.FC = () => {
       </nav>
 
       <div className="sidebar-foot">
-        {/* Log out: intentionally no functionality yet */}
-        <button type="button" className="nav-item logout-btn">
+        <button type="button" className="nav-item logout-btn" onClick={onLogout}>
           <LogOut size={19} />
           <span className="nav-label">Изход</span>
         </button>

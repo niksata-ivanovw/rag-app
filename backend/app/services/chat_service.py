@@ -1,6 +1,5 @@
 import threading
-from collections import OrderedDict
-from typing import Any, Generator, List, Optional, Sequence
+from typing import Generator, List, Optional, Sequence
 
 from llama_index.core.base.base_retriever import BaseRetriever
 from llama_index.core.base.response.schema import StreamingResponse
@@ -63,28 +62,6 @@ def filter_history_by_scope(history: List[ChatMessage], scope: Optional[List[int
     return kept
 
 
-class ScopedMemory:
-    """
-    Wraps a session's ChatMemoryBuffer for one request and stamps every message written to it
-    with that request's scope. Everything else is delegated to the real memory.
-    """
-
-    def __init__(self, inner: ChatMemoryBuffer, scope: Optional[List[int]]):
-        self._inner = inner
-        self._scope = scope
-
-    def put(self, message: ChatMessage) -> None:
-        message.additional_kwargs[SCOPE_KEY] = self._scope
-        self._inner.put(message)
-
-    async def aput(self, message: ChatMessage) -> None:
-        message.additional_kwargs[SCOPE_KEY] = self._scope
-        await self._inner.aput(message)
-
-    def __getattr__(self, name: str) -> Any:
-        return getattr(self._inner, name)
-
-
 class PgVectorRetriever(BaseRetriever):
     """Adapts VectorRetrieverService (pgvector search) to the LlamaIndex retriever interface."""
 
@@ -125,55 +102,6 @@ def node_to_source(node: NodeWithScore) -> ChunkSource:
         section=meta.get("section"),
         metadata=meta,
     )
-
-
-class ChatSessionStore:
-    """In-memory conversation memories keyed by session id (lost on restart, LRU-capped)."""
-
-    def __init__(self, max_sessions: int = 200, token_limit: int = 3000):
-        self._memories: "OrderedDict[str, ChatMemoryBuffer]" = OrderedDict()
-        self._max_sessions = max_sessions
-        self._token_limit = token_limit
-        self._lock = threading.Lock()
-
-    def get(self, session_id: str) -> ChatMemoryBuffer:
-        with self._lock:
-            memory = self._memories.get(session_id)
-            if memory is None:
-                memory = ChatMemoryBuffer.from_defaults(token_limit=self._token_limit)
-                self._memories[session_id] = memory
-                if len(self._memories) > self._max_sessions:
-                    self._memories.popitem(last=False)
-            else:
-                self._memories.move_to_end(session_id)
-            return memory
-
-    def reset(self, session_id: str) -> None:
-        with self._lock:
-            self._memories.pop(session_id, None)
-
-    def drop_last_turn(self, session_id: str, question: str) -> int:
-        """
-        Removes the last question (and its answer, if one was saved) so the question can be answered again
-        without the old answer in the history. Only drops messages that belong to `question`, so a turn
-        that failed before reaching memory never costs the user an earlier, unrelated turn.
-        Returns how many messages were removed.
-        """
-        with self._lock:
-            memory = self._memories.get(session_id)
-            if memory is None:
-                return 0
-            messages = memory.get_all()
-            is_question = lambda m: m.role == MessageRole.USER and (m.content or "").strip() == question.strip()
-
-            if len(messages) >= 2 and messages[-1].role == MessageRole.ASSISTANT and is_question(messages[-2]):
-                drop = 2
-            elif messages and is_question(messages[-1]):
-                drop = 1  # previous attempt failed mid-stream: the question was saved, the answer wasn't
-            else:
-                return 0
-            memory.set(messages[:-drop])
-            return drop
 
 
 def cancellable(tokens: Generator[str, None, None], cancel: threading.Event) -> Generator[str, None, None]:
@@ -232,18 +160,26 @@ class RAGChatEngine(CondensePlusContextChatEngine):
         return synthesizer
 
 
+# Token budget for earlier conversation given to the LLM; older messages are left out
+HISTORY_TOKEN_LIMIT = 3000
+
+
 def build_chat_engine(
     retriever: BaseRetriever,
     llm: LLM,
-    memory: ChatMemoryBuffer,
+    history: List[ChatMessage],
     condense_llm: Optional[LLM] = None,
     document_ids: Optional[Sequence[int]] = None,
 ) -> RAGChatEngine:
+    """
+    `history` is the user's stored conversation (oldest first), each message tagged with its document scope.
+    The engine's memory is built from it for this one request; saving the new turn is up to the caller.
+    """
     scope = scope_of(document_ids)
     engine = RAGChatEngine.from_defaults(
         retriever=retriever,
         llm=llm,
-        memory=ScopedMemory(memory, scope),
+        memory=ChatMemoryBuffer.from_defaults(chat_history=history, token_limit=HISTORY_TOKEN_LIMIT),
         system_prompt=SYSTEM_PROMPT,
         context_prompt=CONTEXT_PROMPT,
     )

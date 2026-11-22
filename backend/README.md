@@ -109,8 +109,9 @@ pip install -r requirements.txt
 python scripts/migrate.py            # applies pending SQL files from migrations/, each exactly once
 python scripts/migrate.py --status   # shows applied / pending migrations
 ```
-Tables: `users`, `documents` (each owned by a user), `document_chunks` (each belongs to a document).
-A user only ever sees and searches their own documents.
+Tables: `users`, `documents` (each owned by a user), `document_chunks` (each belongs to a document),
+`chat_messages` (one persistent conversation per user; survives restarts).
+A user only ever sees and searches their own documents and chat.
 
 ### 3. Configure Authentication
 Users log in with email + password and get a JWT access token (`Authorization: Bearer <token>`).

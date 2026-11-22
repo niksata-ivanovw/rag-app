@@ -52,7 +52,6 @@ export interface QueryRequest {
   top_k?: number;
   /** Ids from GET /documents to search in; omitted or empty = all documents */
   document_ids?: number[];
-  session_id?: string;
   /** Re-answer the last question: the backend drops the previous answer from the chat history first */
   regenerate?: boolean;
 }
@@ -70,6 +69,24 @@ export interface QueryResponse {
   sources: ChunkSource[];
 }
 
+/** One message of the account's chat history, from GET /query/session */
+export interface ServerChatMessage {
+  id: number;
+  role: 'user' | 'assistant';
+  content: string;
+  created_at: string;
+  document_ids: number[] | null;
+  target_files: string[];
+  sources: ChunkSource[];
+  /** generating = still being answered (possibly in another tab) */
+  status: 'generating' | 'complete' | 'stopped' | 'error';
+  error: string | null;
+}
+
+export interface ChatHistoryResponse {
+  messages: ServerChatMessage[];
+}
+
 export interface ChatMessage {
   id: string;
   role: 'user' | 'assistant';
@@ -78,11 +95,24 @@ export interface ChatMessage {
   timestamp: string;
   /** File names the question was scoped to; empty/missing = all documents */
   targetFiles?: string[];
-  /** @deprecated single-file scope from older saved chats */
-  targetFile?: string | null;
   error?: boolean;
   /** True while tokens are still arriving */
   streaming?: boolean;
   /** The user stopped the generation; content is whatever had arrived by then */
   stopped?: boolean;
+}
+
+/** An account, from POST /auth/register and GET /auth/me */
+export interface AuthUser {
+  id: number;
+  email: string;
+  created_at: string;
+}
+
+/** POST /auth/login */
+export interface TokenResponse {
+  access_token: string;
+  token_type: string;
+  /** seconds until the token expires */
+  expires_in: number;
 }

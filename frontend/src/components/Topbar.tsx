@@ -2,10 +2,12 @@ import React from 'react';
 import { useLocation } from 'react-router-dom';
 import { User } from 'lucide-react';
 import { useRag } from '../context/useRag';
+import { useAuth } from '../context/useAuth';
 import { NAV_ITEMS } from './navItems';
 
 export const Topbar: React.FC = () => {
   const { backendOnline } = useRag();
+  const { user } = useAuth();
   const { pathname } = useLocation();
   const current = NAV_ITEMS.find((item) => pathname.startsWith(item.to));
 
@@ -23,10 +25,10 @@ export const Topbar: React.FC = () => {
           <span className="status-pill-dot" />
           {backendOnline ? 'Онлайн' : 'Офлайн'}
         </span>
-        <button type="button" className="user-avatar" aria-hidden="true">
-          <User size={18} />
-        </button>
-        {/* make the button get darker on hover */}
+        {user && <span className="topbar-user">{user.email}</span>}
+        <span className="user-avatar" title={user?.email} aria-hidden="true">
+          {user ? user.email.charAt(0).toUpperCase() : <User size={18} />}
+        </span>
       </div>
     </header>
   );

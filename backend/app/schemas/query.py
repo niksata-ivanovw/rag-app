@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from pydantic import BaseModel, Field, field_validator
 from typing import List, Optional, Any, Dict
 
@@ -18,7 +20,6 @@ class QueryRequest(BaseModel):
         max_length=200,
         description="ID-та на документи (от GET /documents), в които да се търси. Празен списък или null = всички документи.",
     )
-    session_id: str = Field(default="default", min_length=1, max_length=128, description="ID на чат сесията; историята на разговора се пази по него")
     regenerate: bool = Field(
         default=False,
         description="Генерира наново отговора на последния въпрос: предишният ход се маха от историята преди отговора",
@@ -30,6 +31,22 @@ class QueryRequest(BaseModel):
         if ids is None:
             return None
         return list(dict.fromkeys(ids))  # drop duplicates, keep order
+
+class ChatHistoryMessage(BaseModel):
+    id: int
+    role: str  # user | assistant
+    content: str
+    created_at: datetime
+    document_ids: Optional[List[int]] = Field(default=None, description="Документите, в които е търсено; null = всички")
+    target_files: List[str] = Field(default_factory=list, description="Имената им към момента на въпроса")
+    sources: List[Dict[str, Any]] = Field(default_factory=list)
+    status: str = Field(..., description="generating | complete | stopped | error")
+    error: Optional[str] = None
+
+
+class ChatHistoryResponse(BaseModel):
+    messages: List[ChatHistoryMessage]
+
 
 class QueryResponse(BaseModel):
     question: str

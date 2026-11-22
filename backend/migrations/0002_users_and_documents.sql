@@ -3,14 +3,11 @@
 -- Before: document_chunks.document_id was always 1 and a document was identified only by
 -- metadata->>'file_name'. Now every uploaded file is a row in `documents`, owned by a user,
 -- and each chunk points to its document. Deleting a user deletes their documents and chunks.
---
--- Existing chunks are discarded: they have no owner. (Their MinIO files are removed separately.)
 
 TRUNCATE document_chunks RESTART IDENTITY;
 
 CREATE TABLE users (
     id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    -- stored normalized (trimmed, lower-case), so the unique constraint is case-insensitive
     email           TEXT NOT NULL UNIQUE CHECK (email = lower(btrim(email)) AND email <> ''),
     hashed_password TEXT NOT NULL,
     created_at      TIMESTAMPTZ NOT NULL DEFAULT now()

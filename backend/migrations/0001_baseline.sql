@@ -1,5 +1,4 @@
 -- 0001: schema as it existed before migrations were tracked (document_chunks only).
--- Idempotent, so it is a no-op on a database that already has it and builds a fresh one from scratch.
 
 CREATE EXTENSION IF NOT EXISTS vector;
 

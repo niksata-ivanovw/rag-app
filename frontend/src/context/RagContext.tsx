@@ -1,14 +1,14 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import type { DocumentItem, ChatMessage, InvalidFileDetail } from '../types';
-import { api } from '../api/client';
+import type { DocumentItem, ChatMessage, InvalidFileDetail, ServerChatMessage } from '../types';
+import { api, ApiError } from '../api/client';
 import { RagContext, type UploadResult } from './ragContextInstance';
 
-const SESSION_KEY = 'rag_session_id';
 /** abort() reason that means "the user pressed Stop" (clearing the chat aborts without it) */
 const STOP_REASON = 'user-stopped';
 const SELECTED_IDS_KEY = 'rag_selected_doc_ids';
-// Selections saved when documents were identified by file name; meaningless now
-const LEGACY_KEYS = ['rag_selected_doc'];
+// Left over from older versions: the file-name based selection, the per-browser chat session id
+// (the chat session is now the logged-in account) and the chat itself (now loaded from the server)
+const LEGACY_KEYS = ['rag_selected_doc', 'rag_session_id', 'rag_chat_messages'];
 
 const loadSelectedIds = (): number[] => {
   try {
@@ -30,19 +30,6 @@ const pruneSelection = (ids: number[], docs: DocumentItem[]): number[] => {
   const existing = new Set(docs.map((d) => d.id));
   const kept = ids.filter((id) => existing.has(id));
   return kept.length === ids.length ? ids : kept;
-};
-
-const newSessionId = (): string =>
-  typeof crypto !== 'undefined' && 'randomUUID' in crypto
-    ? crypto.randomUUID()
-    : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-
-const loadSessionId = (): string => {
-  const saved = localStorage.getItem(SESSION_KEY);
-  if (saved) return saved;
-  const id = newSessionId();
-  localStorage.setItem(SESSION_KEY, id);
-  return id;
 };
 
 const MIME_LABELS: Record<string, string> = {
@@ -75,6 +62,31 @@ const invalidFileMessage = (fileName: string, detail?: InvalidFileDetail | strin
   }
 };
 
+// While another tab is generating an answer, check for it this often
+const OTHER_TAB_POLL_MS = 3000;
+
+const BUSY_MESSAGE =
+  'В момента се генерира друг отговор за този акаунт (в друг раздел или прозорец). Изчакайте го да завърши или го спрете там.';
+
+const formatTimestamp = (iso: string): string => {
+  const date = new Date(iso);
+  const time = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  return date.toDateString() === new Date().toDateString() ? time : `${date.toLocaleDateString()} ${time}`;
+};
+
+const fromServer = (m: ServerChatMessage): ChatMessage => ({
+  id: `msg-${m.id}`,
+  role: m.role,
+  content: m.status === 'error' && m.error ? (m.content ? `${m.content}\n\n⚠️ ${m.error}` : `⚠️ ${m.error}`) : m.content,
+  timestamp: formatTimestamp(m.created_at),
+  targetFiles: m.target_files,
+  sources: m.sources,
+  error: m.status === 'error',
+  stopped: m.status === 'stopped',
+  // being answered somewhere else; this tab shows it as in progress until it finishes
+  streaming: m.status === 'generating',
+});
+
 const nowTime = () => new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
 export const RagProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -82,18 +94,15 @@ export const RagProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [loadingDocuments, setLoadingDocuments] = useState<boolean>(false);
   const [selectedDocumentIds, setSelectedDocumentIds] = useState<number[]>(loadSelectedIds);
 
-  const [messages, setMessages] = useState<ChatMessage[]>(() => {
-    const saved = localStorage.getItem('rag_chat_messages');
-    const parsed: ChatMessage[] = saved ? JSON.parse(saved) : [];
-    // A reload mid-answer leaves a half-streamed message behind; mark it finished.
-    return parsed.map((m) => (m.streaming ? { ...m, streaming: false } : m));
-  });
+  // The account's conversation, loaded from the server (the same in every browser)
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
 
-  // Server-side conversation memory is keyed by this id
-  const sessionIdRef = useRef<string>(loadSessionId());
   const abortRef = useRef<AbortController | null>(null);
 
   const [isQuerying, setIsQuerying] = useState<boolean>(false);
+
+  // Logging out (or switching accounts) unmounts the provider: stop an answer still streaming
+  useEffect(() => () => abortRef.current?.abort(), []);
   const [backendOnline, setBackendOnline] = useState<boolean>(true);
 
   // Sync selection to localStorage
@@ -107,10 +116,47 @@ export const RagProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return documents.filter((d) => ids.has(d.id));
   }, [documents, selectedDocumentIds]);
 
-  // Sync messages to localStorage
+  // Read by event listeners, which would otherwise see a stale value
+  const isQueryingRef = useRef(false);
   useEffect(() => {
-    localStorage.setItem('rag_chat_messages', JSON.stringify(messages));
-  }, [messages]);
+    isQueryingRef.current = isQuerying;
+  }, [isQuerying]);
+
+  /** Replaces the chat with the server's copy, unless this tab is streaming an answer right now */
+  const loadHistory = useCallback(async () => {
+    if (isQueryingRef.current) return;
+    try {
+      const { messages: stored } = await api.getChatHistory();
+      if (!isQueryingRef.current) setMessages(stored.map(fromServer));
+    } catch (err) {
+      console.warn('Failed to load chat history:', err);
+    }
+  }, []);
+
+  // Load on start, and again whenever the tab comes back into view: another browser or tab
+  // may have asked something or cleared the chat in the meantime
+  useEffect(() => {
+    // deferred so the state update doesn't happen synchronously inside the effect
+    const initial = setTimeout(loadHistory, 0);
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') loadHistory();
+    };
+    window.addEventListener('focus', loadHistory);
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      clearTimeout(initial);
+      window.removeEventListener('focus', loadHistory);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [loadHistory]);
+
+  // An answer being generated in another tab: check back until it is done
+  const answerInProgressElsewhere = !isQuerying && messages.some((m) => m.streaming);
+  useEffect(() => {
+    if (!answerInProgressElsewhere) return;
+    const timer = setInterval(loadHistory, OTHER_TAB_POLL_MS);
+    return () => clearInterval(timer);
+  }, [answerInProgressElsewhere, loadHistory]);
 
   // Fetch document list
   const fetchDocuments = useCallback(async () => {
@@ -253,7 +299,6 @@ export const RagProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           question,
           top_k: 3,
           document_ids: documentIds.length > 0 ? documentIds : undefined,
-          session_id: sessionIdRef.current,
           regenerate: regenerate || undefined,
         },
         (event) => {
@@ -280,7 +325,12 @@ export const RagProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return;
       }
       console.error('Query error:', err);
-      const errorMsg = err instanceof Error && err.message ? err.message : 'Възникна грешка при обработката на въпроса.';
+      const errorMsg =
+        err instanceof ApiError && err.status === 409
+          ? BUSY_MESSAGE
+          : err instanceof Error && err.message
+            ? err.message
+            : 'Възникна грешка при обработката на въпроса.';
       updateAssistant((m) => ({
         ...m,
         // keep whatever was already streamed, then show the error
@@ -347,13 +397,8 @@ export const RagProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const clearMessages = () => {
     abortRef.current?.abort();
     setMessages([]);
-    localStorage.removeItem('rag_chat_messages');
-
-    // Drop the server-side history and start a fresh conversation
-    const oldSession = sessionIdRef.current;
-    sessionIdRef.current = newSessionId();
-    localStorage.setItem(SESSION_KEY, sessionIdRef.current);
-    api.resetSession(oldSession).catch((err) => console.warn('Failed to reset chat session:', err));
+    // Deletes the account's conversation; other open tabs show the empty chat once they are focused
+    api.resetSession().catch((err) => console.warn('Failed to reset chat session:', err));
   };
 
   return (

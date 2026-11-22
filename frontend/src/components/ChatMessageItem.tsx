@@ -12,7 +12,7 @@ interface ChatMessageItemProps {
 export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({ message }) => {
   const isUser = message.role === 'user';
   const waitingForFirstToken = message.streaming && !message.content;
-  const scope = message.targetFiles ?? (message.targetFile ? [message.targetFile] : []);
+  const scope = message.targetFiles ?? [];
 
   return (
     <div className={`msg ${isUser ? 'msg-user' : 'msg-ai'} ${message.error ? 'msg-error' : ''}`}>
